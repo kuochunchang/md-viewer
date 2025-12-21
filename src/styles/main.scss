@@ -1,6 +1,6 @@
 @import './variables.scss';
 
-// 導入 highlight.js 樣式
+// Import highlight.js styles
 @import 'highlight.js/styles/github.css';
 
 * {
@@ -21,15 +21,16 @@ body {
   overflow: hidden;
 }
 
-// highlight.js 深色主題適配
+// highlight.js dark theme compatibility
 .v-theme--dark {
-  // 覆蓋 highlight.js 的淺色主題顏色，使其適配深色主題
+
+  // Override highlight.js light theme colors to adapt to dark theme
   .hljs {
     background: rgba(255, 255, 255, 0.05) !important;
     color: rgba(255, 255, 255, 0.9) !important;
   }
 
-  // 調整深色主題下的語法高亮顏色
+  // Adjust syntax highlighting colors in dark theme
   .hljs-keyword,
   .hljs-selector-tag,
   .hljs-literal,

@@ -6,8 +6,13 @@
   overflow-y: auto;
   height: 100%;
 
-  // 標題樣式
-  h1, h2, h3, h4, h5, h6 {
+  // Heading styles
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
     margin-top: $spacing-lg;
     margin-bottom: $spacing-md;
     font-weight: 600;
@@ -34,13 +39,14 @@
     font-size: 1.25em;
   }
 
-  // 段落樣式
+  // Paragraph styles
   p {
     margin-bottom: $spacing-md;
   }
 
-  // 列表樣式
-  ul, ol {
+  // List styles
+  ul,
+  ol {
     margin-bottom: $spacing-md;
     padding-left: $spacing-xl;
   }
@@ -49,7 +55,7 @@
     margin-bottom: $spacing-xs;
   }
 
-  // 連結樣式
+  // Link styles
   a {
     color: $primary-color;
     text-decoration: none;
@@ -59,7 +65,7 @@
     }
   }
 
-  // 程式碼區塊樣式
+  // Code block styles
   pre {
     background-color: rgba(0, 0, 0, 0.05);
     border-radius: 4px;
@@ -81,7 +87,7 @@
     font-size: 0.9em;
   }
 
-  // 引用樣式
+  // Blockquote styles
   blockquote {
     border-left: 4px solid $primary-color;
     padding-left: $spacing-md;
@@ -90,7 +96,7 @@
     font-style: italic;
   }
 
-  // 分隔線樣式
+  // Separator styles
   hr {
     border: none;
     border-top: 1px solid currentColor;
@@ -98,7 +104,7 @@
     opacity: 0.3;
   }
 
-  // Mermaid 圖表容器
+  // Mermaid chart container
   .mermaid-container {
     margin: $spacing-lg 0;
     text-align: center;
@@ -117,13 +123,14 @@
     }
   }
 
-  // 表格樣式
+  // Table styles
   table {
     width: 100%;
     border-collapse: collapse;
     margin-bottom: $spacing-md;
 
-    th, td {
+    th,
+    td {
       border: 1px solid currentColor;
       padding: $spacing-sm;
       text-align: left;
@@ -135,7 +142,7 @@
     }
   }
 
-  // 深色主題變體
+  // Dark theme variants
   .v-theme--dark & {
     pre {
       background-color: rgba(255, 255, 255, 0.1);

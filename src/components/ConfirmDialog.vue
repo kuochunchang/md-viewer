@@ -15,14 +15,14 @@
           variant="text"
           @click="handleCancel"
         >
-          取消
+          Cancel
         </v-btn>
         <v-btn
           color="error"
           variant="flat"
           @click="handleConfirm"
         >
-          確認
+          Confirm
         </v-btn>
       </v-card-actions>
     </v-card>

@@ -26,30 +26,30 @@ const props = withDefaults(defineProps<Props>(), {
   fontSize: 14
 })
 
-// 使用 ref 包裝 content 以便傳入 composable
+// Wrap content with ref for composable
 const contentRef = ref(props.content)
 
-// 使用 useMarkdown composable 取得渲染後的 HTML
+// Use useMarkdown composable to get rendered HTML
 const { html: markdownHtml } = useMarkdown(contentRef)
 
-// 使用 useMermaid composable 處理 Mermaid 圖表渲染
+// Use useMermaid composable to handle Mermaid chart rendering
 const { renderAllMermaid } = useMermaid()
 
-// 預覽內容容器的引用
+// Reference to preview content container
 const previewContentRef = ref<HTMLElement | null>(null)
 
-// 防抖處理：延遲 300ms 更新內容，優化大量輸入時的效能
+// Debounce: delay 300ms to update content, optimizing performance for fast typing
 const debouncedUpdate = debounce((newContent: string) => {
   contentRef.value = newContent
 }, 300)
 
-// 標記是否為首次載入
+// Flag for initial load
 let isInitialLoad = true
 
-// 立即更新內容（用於初始渲染）
+// Immediately update content (for initial render)
 const renderedHtml = computed(() => markdownHtml.value)
 
-// 渲染 Mermaid 圖表的函數
+// Function to render Mermaid charts
 const renderMermaidCharts = async () => {
   await nextTick()
   if (previewContentRef.value) {
@@ -57,24 +57,24 @@ const renderMermaidCharts = async () => {
   }
 }
 
-// 監聽 props.content 變化，使用防抖更新
+// Watch props.content changes with debounce
 watch(() => props.content, (newContent) => {
   if (isInitialLoad) {
-    // 首次載入時立即更新
+    // Immediate update on first load
     contentRef.value = newContent
     isInitialLoad = false
   } else {
-    // 後續更新使用防抖
+    // Use debounce for subsequent updates
     debouncedUpdate(newContent)
   }
 }, { immediate: true })
 
-// 監聽渲染後的 HTML 變化，觸發 Mermaid 渲染
+// Watch for rendered HTML changes to trigger Mermaid rendering
 watch(renderedHtml, async () => {
   await renderMermaidCharts()
 }, { immediate: true })
 
-// 組件掛載後渲染 Mermaid
+// Render Mermaid after component mount
 onMounted(async () => {
   await renderMermaidCharts()
 })
@@ -92,7 +92,7 @@ onMounted(async () => {
   background-color: rgb(var(--v-theme-surface));
   color: rgb(var(--v-theme-on-surface));
 
-  // RWD: 手機版面調整
+  // RWD: Mobile layout adjustment
   @media (max-width: 600px) {
     padding: 12px;
   }
@@ -103,7 +103,7 @@ onMounted(async () => {
     word-wrap: break-word;
     overflow-wrap: break-word;
 
-    // 標題樣式
+    // Heading styles
     :deep(h1),
     :deep(h2),
     :deep(h3),
@@ -146,13 +146,13 @@ onMounted(async () => {
       color: rgba(var(--v-theme-on-surface), 0.7);
     }
 
-    // 段落樣式
+    // Paragraph styles
     :deep(p) {
       margin-bottom: 1em;
       line-height: 1.8;
     }
 
-    // 列表樣式
+    // List styles
     :deep(ul),
     :deep(ol) {
       margin-bottom: 1em;
@@ -180,7 +180,7 @@ onMounted(async () => {
       margin-bottom: 0.5em;
     }
 
-    // 連結樣式
+    // Link styles
     :deep(a) {
       color: rgb(var(--v-theme-primary));
       text-decoration: none;
@@ -192,7 +192,7 @@ onMounted(async () => {
       }
     }
 
-    // 程式碼區塊樣式
+    // Code block styles
     :deep(pre) {
       background-color: rgba(var(--v-theme-on-surface), 0.05);
       border-radius: 6px;
@@ -209,7 +209,7 @@ onMounted(async () => {
       }
     }
 
-    // 行內程式碼樣式
+    // Inline code styles
     :deep(code:not(pre code)) {
       background-color: rgba(var(--v-theme-on-surface), 0.1);
       padding: 2px 6px;
@@ -226,7 +226,7 @@ onMounted(async () => {
       font-size: 0.9em;
     }
 
-    // highlight.js 程式碼高亮樣式
+    // highlight.js syntax highlighting styles
     :deep(.hljs) {
       display: block;
       overflow-x: auto;
@@ -234,7 +234,7 @@ onMounted(async () => {
       background: transparent;
     }
 
-    // 引用樣式
+    // Blockquote styles
     :deep(blockquote) {
       border-left: 4px solid rgb(var(--v-theme-primary));
       padding-left: 1em;
@@ -246,14 +246,14 @@ onMounted(async () => {
       border-radius: 4px;
     }
 
-    // 分隔線樣式
+    // Separator styles
     :deep(hr) {
       border: none;
       border-top: 2px solid rgba(var(--v-theme-on-surface), 0.1);
       margin: 2em 0;
     }
 
-    // 表格樣式
+    // Table styles
     :deep(table) {
       width: 100%;
       border-collapse: collapse;
@@ -284,7 +284,7 @@ onMounted(async () => {
       }
     }
 
-    // 圖片樣式
+    // Image styles
     :deep(img) {
       max-width: 100%;
       height: auto;
@@ -292,7 +292,7 @@ onMounted(async () => {
       margin: 1em 0;
     }
 
-    // 強調樣式
+    // Emphasis styles
     :deep(strong) {
       font-weight: 600;
     }
@@ -301,13 +301,13 @@ onMounted(async () => {
       font-style: italic;
     }
 
-    // 刪除線樣式
+    // Strikethrough styles
     :deep(del) {
       text-decoration: line-through;
       opacity: 0.7;
     }
 
-    // 空狀態樣式
+    // Empty state styles
     :deep(.empty-state) {
       color: rgba(var(--v-theme-on-surface), 0.5);
       text-align: center;
@@ -315,7 +315,7 @@ onMounted(async () => {
       font-style: italic;
     }
 
-    // 錯誤狀態樣式
+    // Error state styles
     :deep(.error-state) {
       padding: 1em;
       background-color: rgba(244, 67, 54, 0.1);
@@ -333,7 +333,7 @@ onMounted(async () => {
       }
     }
 
-    // Mermaid 圖表容器樣式
+    // Mermaid chart container styles
     :deep(.mermaid-container) {
       margin: 1.5em 0;
       text-align: center;
@@ -400,7 +400,7 @@ onMounted(async () => {
     }
   }
 
-  // 深色主題下的 Mermaid 容器
+  // Mermaid container in dark theme
   .v-theme--dark & {
     :deep(.mermaid-container) {
       background-color: rgba(255, 255, 255, 0.03);
@@ -420,7 +420,7 @@ onMounted(async () => {
     }
   }
 
-  // 深色主題變體
+  // Dark theme variants
   .v-theme--dark & {
     :deep(pre) {
       background-color: rgba(255, 255, 255, 0.05);
@@ -448,7 +448,7 @@ onMounted(async () => {
     }
   }
 
-  // 自訂滾動條樣式
+  // Custom scrollbar styles
   &::-webkit-scrollbar {
     width: 8px;
   }

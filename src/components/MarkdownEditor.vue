@@ -5,14 +5,14 @@
       v-model="localContent"
       class="editor-textarea"
       :style="{ fontSize: fontSize + 'px' }"
-      placeholder="在此輸入 Markdown 內容..."
+      placeholder="Enter Markdown content here..."
       @input="handleInput"
     ></textarea>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch } from 'vue';
 
 interface Props {
   modelValue: string
@@ -30,7 +30,7 @@ const emit = defineEmits<{
 const textareaRef = ref<HTMLTextAreaElement | null>(null)
 const localContent = ref(props.modelValue)
 
-// 監聽外部內容變化
+// Listen to external content changes
 watch(() => props.modelValue, (newValue) => {
   if (newValue !== localContent.value) {
     localContent.value = newValue
@@ -65,7 +65,7 @@ const handleInput = (e: Event) => {
   color: rgb(var(--v-theme-on-surface));
   overflow-y: auto;
 
-  // RWD: 手機版面調整
+  // RWD: Mobile layout adjustments
   @media (max-width: 600px) {
     padding: 12px;
     line-height: 1.5;
@@ -79,7 +79,7 @@ const handleInput = (e: Event) => {
     outline: none;
   }
 
-  // 自訂滾動條樣式
+  // Custom scrollbar styling
   &::-webkit-scrollbar {
     width: 8px;
   }

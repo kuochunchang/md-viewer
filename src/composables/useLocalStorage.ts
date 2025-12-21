@@ -1,6 +1,6 @@
 /**
- * localStorage 讀寫邏輯封裝
- * 提供型別安全的 localStorage 操作
+ * localStorage read/write logic encapsulation
+ * Provides type-safe localStorage operations
  */
 
 export interface StoredTabsData {
@@ -17,7 +17,7 @@ export interface StoredTabsData {
 const STORAGE_KEY = 'markdown-mermaid-editor-data'
 
 /**
- * 從 localStorage 讀取資料
+ * Load data from localStorage
  */
 export function loadFromLocalStorage(): StoredTabsData | null {
   try {
@@ -26,7 +26,7 @@ export function loadFromLocalStorage(): StoredTabsData | null {
       return null
     }
     const parsed = JSON.parse(stored) as StoredTabsData
-    // 驗證資料結構
+    // Validate data structure
     if (
       parsed &&
       Array.isArray(parsed.tabs) &&
@@ -42,7 +42,7 @@ export function loadFromLocalStorage(): StoredTabsData | null {
 }
 
 /**
- * 儲存資料至 localStorage
+ * Save data to localStorage
  */
 export function saveToLocalStorage(data: StoredTabsData): void {
   try {
@@ -50,7 +50,7 @@ export function saveToLocalStorage(data: StoredTabsData): void {
     localStorage.setItem(STORAGE_KEY, serialized)
   } catch (error) {
     console.error('Failed to save to localStorage:', error)
-    // 如果儲存失敗（例如空間不足），嘗試清理舊資料
+    // If save fails (e.g., quota exceeded), try clearing old data
     try {
       localStorage.removeItem(STORAGE_KEY)
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
@@ -61,7 +61,7 @@ export function saveToLocalStorage(data: StoredTabsData): void {
 }
 
 /**
- * 清除 localStorage 中的資料
+ * Clear data from localStorage
  */
 export function clearLocalStorage(): void {
   try {

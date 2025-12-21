@@ -1,26 +1,26 @@
-import { describe, it, expect } from 'vitest'
 import { shallowMount } from '@vue/test-utils'
+import { describe, expect, it } from 'vitest'
 import ConfirmDialog from './ConfirmDialog.vue'
 
 describe('ConfirmDialog', () => {
-  it('應該能夠渲染', () => {
+  it('should render correctly', () => {
     const wrapper = shallowMount(ConfirmDialog, {
       props: {
         modelValue: true,
-        title: '確認刪除',
-        message: '確定要刪除這個頁籤嗎？',
+        title: 'Confirm Delete',
+        message: 'Are you sure you want to delete this tab?',
       },
     })
 
     expect(wrapper.exists()).toBe(true)
   })
 
-  it('應該能夠觸發確認事件', async () => {
+  it('should emit confirm event', async () => {
     const wrapper = shallowMount(ConfirmDialog, {
       props: {
         modelValue: true,
-        title: '確認刪除',
-        message: '確定要刪除這個頁籤嗎？',
+        title: 'Confirm Delete',
+        message: 'Are you sure you want to delete this tab?',
       },
     })
 
@@ -28,12 +28,12 @@ describe('ConfirmDialog', () => {
     expect(wrapper.emitted('confirm')).toBeTruthy()
   })
 
-  it('應該能夠觸發取消事件', async () => {
+  it('should emit cancel event', async () => {
     const wrapper = shallowMount(ConfirmDialog, {
       props: {
         modelValue: true,
-        title: '確認刪除',
-        message: '確定要刪除這個頁籤嗎？',
+        title: 'Confirm Delete',
+        message: 'Are you sure you want to delete this tab?',
       },
     })
 

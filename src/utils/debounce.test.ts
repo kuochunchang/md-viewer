@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { debounce } from './debounce'
 
 describe('debounce', () => {
@@ -10,7 +10,7 @@ describe('debounce', () => {
     vi.restoreAllMocks()
   })
 
-  it('應該延遲執行函數', () => {
+  it('should delay function execution', () => {
     const mockFn = vi.fn()
     const debouncedFn = debounce(mockFn, 100)
 
@@ -21,7 +21,7 @@ describe('debounce', () => {
     expect(mockFn).toHaveBeenCalledTimes(1)
   })
 
-  it('應該在多次調用時只執行最後一次', () => {
+  it('should only execute last call when called multiple times', () => {
     const mockFn = vi.fn()
     const debouncedFn = debounce(mockFn, 100)
 
@@ -33,7 +33,7 @@ describe('debounce', () => {
     expect(mockFn).toHaveBeenCalledTimes(1)
   })
 
-  it('應該傳遞正確的參數', () => {
+  it('should pass correct arguments', () => {
     const mockFn = vi.fn()
     const debouncedFn = debounce(mockFn, 100)
 

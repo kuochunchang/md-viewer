@@ -1,18 +1,18 @@
 <template>
   <div class="settings-menu">
-    <!-- 主題切換按鈕 -->
+    <!-- Theme Toggle Button -->
     <v-btn
       icon
       variant="text"
       size="small"
       class="theme-toggle-btn"
-      :title="isDark ? '切換至淺色主題' : '切換至深色主題'"
+      :title="isDark ? 'Switch to light theme' : 'Switch to dark theme'"
       @click="toggleTheme"
     >
       <v-icon>{{ isDark ? 'mdi-weather-sunny' : 'mdi-weather-night' }}</v-icon>
     </v-btn>
 
-    <!-- 字體大小調整選單 -->
+    <!-- Font Size Adjustment Menu -->
     <v-menu location="bottom end" :close-on-content-click="false">
       <template #activator="{ props: menuProps }">
         <v-btn
@@ -20,7 +20,7 @@
           variant="text"
           size="small"
           class="font-size-btn"
-          title="調整字體大小"
+          title="Adjust font size"
           v-bind="menuProps"
         >
           <v-icon>mdi-format-size</v-icon>
@@ -28,16 +28,16 @@
       </template>
       <v-card min-width="280" class="font-size-menu">
         <v-card-title class="text-subtitle-1 pa-4 pb-2">
-          字體大小
+          Font Size
         </v-card-title>
         <v-card-text class="pt-2">
           <div class="font-size-controls">
-            <!-- 字體大小顯示 -->
+            <!-- Font Size Display -->
             <div class="font-size-display mb-4">
-              <span class="text-body-2">目前大小：{{ fontSize }}px</span>
+              <span class="text-body-2">Current size: {{ fontSize }}px</span>
             </div>
 
-            <!-- 滑桿控制 -->
+            <!-- Slider Control -->
             <v-slider
               v-model="localFontSize"
               :min="10"
@@ -63,7 +63,7 @@
               </template>
             </v-slider>
 
-            <!-- 快速調整按鈕 -->
+            <!-- Quick Preset Buttons -->
             <div class="font-size-presets mt-4">
               <v-btn
                 v-for="preset in fontSizePresets"
@@ -85,36 +85,36 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useTheme } from 'vuetify'
 import { useTabsStore } from '../stores/tabsStore'
 
 const theme = useTheme()
 const tabsStore = useTabsStore()
 
-// 主題狀態
+// Theme state
 const isDark = computed(() => theme.global.name.value === 'dark')
 
-// 字體大小狀態
+// Font size state
 const fontSize = computed(() => tabsStore.fontSize)
 const localFontSize = ref(fontSize.value)
 
-// 字體大小預設值
+// Font size presets
 const fontSizePresets = [12, 14, 16, 18, 20]
 
-// 監聽外部字體大小變化
+// Watch for external font size changes
 watch(fontSize, (newValue) => {
   localFontSize.value = newValue
 })
 
-// 切換主題
+// Toggle Theme
 function toggleTheme() {
   theme.global.name.value = isDark.value ? 'light' : 'dark'
-  // 儲存主題偏好到 localStorage
+  // Save theme preference to localStorage
   localStorage.setItem('theme', theme.global.name.value)
 }
 
-// 處理字體大小變化
+// Handle font size change
 function handleFontSizeChange(value: number | string) {
   const numValue = typeof value === 'string' ? parseInt(value, 10) : value
   if (!isNaN(numValue) && numValue >= 10 && numValue <= 24) {
@@ -122,12 +122,12 @@ function handleFontSizeChange(value: number | string) {
   }
 }
 
-// 設定字體大小（預設值）
+// Set font size (preset)
 function setFontSize(size: number) {
   tabsStore.setFontSize(size)
 }
 
-// 初始化：從 localStorage 載入主題偏好
+// Initialization: Load theme preference from localStorage
 const savedTheme = localStorage.getItem('theme')
 if (savedTheme === 'dark' || savedTheme === 'light') {
   theme.global.name.value = savedTheme
@@ -168,7 +168,7 @@ if (savedTheme === 'dark' || savedTheme === 'light') {
   }
 }
 
-// 響應式設計：小螢幕時調整按鈕大小
+// Responsive Design: Adjust button size on small screens
 @media (max-width: 600px) {
   .settings-menu {
     gap: 2px;

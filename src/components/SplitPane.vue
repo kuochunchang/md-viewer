@@ -23,12 +23,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 
 interface Props {
-  initialRatio?: number // 預設分割比例，default 0.35
-  minRatio?: number // 最小比例限制
-  maxRatio?: number // 最大比例限制
+  initialRatio?: number // Default split ratio, default 0.35
+  minRatio?: number // Minimum ratio limit
+  maxRatio?: number // Maximum ratio limit
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -39,7 +39,7 @@ const props = withDefaults(defineProps<Props>(), {
 
 const leftSize = ref(props.initialRatio * 100)
 const isDragging = ref(false)
-const isVertical = ref(false) // 預設為水平分割（左右）
+const isVertical = ref(false) // Default is horizontal split (side-by-side)
 
 const sizeProperty = computed(() => (isVertical.value ? 'height' : 'width'))
 const rightSize = computed(() => 100 - leftSize.value)
@@ -71,17 +71,17 @@ const stopDrag = () => {
   document.removeEventListener('mouseup', stopDrag)
 }
 
-// RWD: 小螢幕時切換為上下佈局
-// 斷點：手機 < 600px, 平板 600-1024px, 桌面 > 1024px
+// RWD: Switch to vertical layout on small screens
+// Breakpoints: Mobile < 600px, Tablet 600-1024px, Desktop > 1024px
 const checkViewport = () => {
   isVertical.value = window.innerWidth < 768
-  // 手機版面：強制上下佈局，並調整預設比例
+  // Mobile layout: Force vertical layout and adjust default ratio
   if (window.innerWidth < 600) {
-    leftSize.value = 50 // 手機時各佔 50%
+    leftSize.value = 50 // 50/50 split on mobile
   } else if (window.innerWidth < 768) {
-    leftSize.value = 40 // 平板時左側稍小
+    leftSize.value = 40 // Smaller left part on tablet
   } else if (leftSize.value === 50) {
-    // 從手機切換回桌面時，恢復預設比例
+    // Restore default ratio when switching back from mobile to desktop
     leftSize.value = props.initialRatio * 100
   }
 }

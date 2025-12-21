@@ -1,30 +1,30 @@
-import { onMounted } from 'vue'
 import mermaid from 'mermaid'
+import { onMounted } from 'vue'
 
 /**
- * Mermaid 圖表渲染 composable
- * 負責初始化 Mermaid 並渲染圖表
+ * Mermaid diagram rendering composable
+ * Responsible for initializing Mermaid and rendering diagrams
  */
 export function useMermaid() {
-  // Mermaid 初始化標記
+  // Mermaid initialization flag
   let isInitialized = false
 
   /**
-   * 初始化 Mermaid
+   * Initialize Mermaid
    */
   const initMermaid = async () => {
     if (isInitialized) return
 
     try {
-      // 配置 Mermaid 主題（根據當前主題動態調整）
+      // Configure Mermaid theme (dynamically adjusted based on current theme)
       const theme = document.documentElement.classList.contains('v-theme--dark')
         ? 'dark'
         : 'default'
 
       mermaid.initialize({
-        startOnLoad: false, // 不自動渲染，由我們手動控制
+        startOnLoad: false, // Don't auto-render, we control it manually
         theme: theme,
-        securityLevel: 'loose', // 允許更多圖表類型
+        securityLevel: 'loose', // Allow more diagram types
         flowchart: {
           useMaxWidth: true,
           htmlLabels: true,
@@ -67,9 +67,9 @@ export function useMermaid() {
   }
 
   /**
-   * 渲染單個 Mermaid 圖表
-   * @param container - 包含 Mermaid 程式碼的容器元素
-   * @param mermaidCode - Mermaid 程式碼字串
+   * Render a single Mermaid diagram
+   * @param container - Container element containing Mermaid code
+   * @param mermaidCode - Mermaid code string
    * @returns Promise<void>
    */
   const renderMermaid = async (
@@ -77,46 +77,46 @@ export function useMermaid() {
     mermaidCode: string
   ): Promise<void> => {
     try {
-      // 確保 Mermaid 已初始化
+      // Ensure Mermaid is initialized
       if (!isInitialized) {
         await initMermaid()
       }
 
-      // 生成唯一 ID
+      // Generate unique ID
       const id = `mermaid-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
 
-      // 創建臨時元素用於渲染
+      // Create temporary element for rendering
       const tempDiv = document.createElement('div')
       tempDiv.className = 'mermaid'
       tempDiv.id = id
       tempDiv.textContent = mermaidCode.trim()
 
-      // 清空容器並添加臨時元素
+      // Clear container and add temporary element
       container.innerHTML = ''
       container.appendChild(tempDiv)
 
-      // 使用 Mermaid 渲染
+      // Render using Mermaid
       const { svg } = await mermaid.render(id, mermaidCode.trim())
 
-      // 替換為渲染後的 SVG
+      // Replace with rendered SVG
       container.innerHTML = svg
 
-      // 移除錯誤訊息（如果存在）
+      // Remove error message (if exists)
       const errorElement = container.querySelector('.mermaid-error')
       if (errorElement) {
         errorElement.remove()
       }
     } catch (error) {
       console.error('Mermaid rendering error:', error)
-      
-      // 顯示錯誤訊息
+
+      // Display error message
       const errorMessage = error instanceof Error ? error.message : String(error)
       container.innerHTML = `
         <div class="mermaid-error">
-          <p><strong>⚠️ Mermaid 圖表渲染錯誤</strong></p>
+          <p><strong>⚠️ Mermaid Rendering Error</strong></p>
           <pre>${escapeHtml(errorMessage)}</pre>
           <details style="margin-top: 8px;">
-            <summary style="cursor: pointer; color: rgba(244, 67, 54, 0.8);">查看原始程式碼</summary>
+            <summary style="cursor: pointer; color: rgba(244, 67, 54, 0.8);">View source code</summary>
             <pre style="margin-top: 8px; padding: 8px; background: rgba(0, 0, 0, 0.1); border-radius: 4px; font-size: 0.85em;">${escapeHtml(mermaidCode)}</pre>
           </details>
         </div>
@@ -125,21 +125,21 @@ export function useMermaid() {
   }
 
   /**
-   * 渲染容器內的所有 Mermaid 圖表
-   * @param container - 包含 Mermaid 區塊的容器元素
+   * Render all Mermaid diagrams within a container
+   * @param container - Container element containing Mermaid blocks
    */
   const renderAllMermaid = async (container: HTMLElement): Promise<void> => {
-    // 確保 Mermaid 已初始化
+    // Ensure Mermaid is initialized
     if (!isInitialized) {
       await initMermaid()
     }
 
-    // 查找所有 mermaid 容器
+    // Find all mermaid containers
     const mermaidContainers = container.querySelectorAll<HTMLElement>(
       '.mermaid-container[data-mermaid-code]'
     )
 
-    // 並行渲染所有圖表
+    // Parallel render all diagrams
     const renderPromises = Array.from(mermaidContainers).map(async (el) => {
       const mermaidCode = el.getAttribute('data-mermaid-code')
       if (mermaidCode) {
@@ -151,7 +151,7 @@ export function useMermaid() {
   }
 
   /**
-   * HTML 轉義函數
+   * HTML escape function
    */
   function escapeHtml(text: string): string {
     const div = document.createElement('div')
@@ -159,7 +159,7 @@ export function useMermaid() {
     return div.innerHTML
   }
 
-  // 在組件掛載時初始化
+  // Initialize on component mount
   onMounted(() => {
     initMermaid()
   })

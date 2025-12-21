@@ -110,7 +110,7 @@ function handleClose() {
   max-width: 200px;
   height: 36px; 
   margin-top: 4px; 
-  color: #616161; // 亮色模式預設文字顏色
+  color: #616161; // Light mode default text color
 
   // RWD
   @media (max-width: 600px) {
@@ -120,7 +120,7 @@ function handleClose() {
     gap: 6px;
   }
 
-  // 分隔線
+  // Separator
   &::after {
     content: '';
     position: absolute;
@@ -128,12 +128,12 @@ function handleClose() {
     top: 25%;
     height: 50%;
     width: 1px;
-    background-color: #D4D4D4; // VS Code 分隔線顏色
+    background-color: #D4D4D4; // VS Code separator color
     transition: opacity 0.2s;
   }
 
   &:hover {
-    background-color: #E4E4E4; // 亮色模式 Hover
+    background-color: #E4E4E4; // Light mode hover
     &::after {
       opacity: 0; 
     }
@@ -141,7 +141,7 @@ function handleClose() {
 
   &.active {
     background-color: #FFFFFF;
-    color: #333333; // 亮色模式選取文字顏色
+    color: #333333; // Light mode active text color
     box-shadow: none; 
     z-index: 1;
 
@@ -155,9 +155,9 @@ function handleClose() {
     border: 1px solid var(--v-theme-primary);
   }
 
-  // 深色主題適配 (直接套用在類別上)
+  // Dark mode compatibility
   &.is-dark {
-    color: #969696; // 深色模式預設文字顏色
+    color: #969696; // Dark mode default text color
 
     &::after {
       background-color: #3F3F3F; 

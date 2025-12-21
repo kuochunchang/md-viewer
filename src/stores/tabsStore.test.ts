@@ -1,27 +1,27 @@
-import { describe, it, expect, beforeEach } from 'vitest'
-import { setActivePinia, createPinia } from 'pinia'
+import { createPinia, setActivePinia } from 'pinia'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { useTabsStore } from './tabsStore'
 
 describe('tabsStore', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
-    // 清除 localStorage
+    // Clear localStorage
     localStorage.clear()
   })
 
-  it('應該能夠新增頁籤', () => {
+  it('should be able to add a tab', () => {
     const store = useTabsStore()
-    const tabId = store.addTab('測試頁籤')
+    const tabId = store.addTab('Test Tab')
 
     expect(store.tabs.length).toBe(1)
-    expect(store.tabs[0].name).toBe('測試頁籤')
+    expect(store.tabs[0].name).toBe('Test Tab')
     expect(store.activeTabId).toBe(tabId)
   })
 
-  it('應該能夠切換活動頁籤', () => {
+  it('should be able to switch active tab', () => {
     const store = useTabsStore()
-    const tabId1 = store.addTab('頁籤 1')
-    const tabId2 = store.addTab('頁籤 2')
+    const tabId1 = store.addTab('Tab 1')
+    const tabId2 = store.addTab('Tab 2')
 
     expect(store.activeTabId).toBe(tabId2)
 
@@ -29,50 +29,50 @@ describe('tabsStore', () => {
     expect(store.activeTabId).toBe(tabId1)
   })
 
-  it('應該能夠更新頁籤內容', () => {
+  it('should be able to update tab content', () => {
     const store = useTabsStore()
-    const tabId = store.addTab('測試頁籤')
+    const tabId = store.addTab('Test Tab')
 
-    store.updateTabContent(tabId, '新的內容')
+    store.updateTabContent(tabId, 'new content')
     const tab = store.tabs.find(t => t.id === tabId)
-    expect(tab?.content).toBe('新的內容')
+    expect(tab?.content).toBe('new content')
   })
 
-  it('應該能夠重新命名頁籤', () => {
+  it('should be able to rename a tab', () => {
     const store = useTabsStore()
-    const tabId = store.addTab('舊名稱')
+    const tabId = store.addTab('old name')
 
-    store.renameTab(tabId, '新名稱')
+    store.renameTab(tabId, 'new name')
     const tab = store.tabs.find(t => t.id === tabId)
-    expect(tab?.name).toBe('新名稱')
+    expect(tab?.name).toBe('new name')
   })
 
-  it('應該能夠刪除頁籤', () => {
+  it('should be able to remove a tab', () => {
     const store = useTabsStore()
-    const tabId1 = store.addTab('頁籤 1')
-    const tabId2 = store.addTab('頁籤 2')
+    const tabId1 = store.addTab('Tab 1')
+    const tabId2 = store.addTab('Tab 2')
 
     store.removeTab(tabId1)
     expect(store.tabs.length).toBe(1)
     expect(store.tabs[0].id).toBe(tabId2)
   })
 
-  it('刪除最後一個頁籤時應該自動創建新頁籤', () => {
+  it('should automatically create a new tab when the last one is removed', () => {
     const store = useTabsStore()
-    const tabId = store.addTab('唯一頁籤')
+    const tabId = store.addTab('Only Tab')
 
     store.removeTab(tabId)
     expect(store.tabs.length).toBe(1)
     expect(store.activeTabId).not.toBeNull()
   })
 
-  it('應該能夠設定字體大小', () => {
+  it('should be able to set font size', () => {
     const store = useTabsStore()
     store.setFontSize(16)
     expect(store.fontSize).toBe(16)
   })
 
-  it('字體大小應該限制在 10-24 之間', () => {
+  it('font size should be restricted between 10-24', () => {
     const store = useTabsStore()
     store.setFontSize(5)
     expect(store.fontSize).toBe(10)
@@ -81,69 +81,69 @@ describe('tabsStore', () => {
     expect(store.fontSize).toBe(24)
   })
 
-  it('activeTab computed 應該返回當前活動頁籤', () => {
+  it('activeTab computed should return the current active tab', () => {
     const store = useTabsStore()
-    const tabId1 = store.addTab('頁籤 1')
-    const tabId2 = store.addTab('頁籤 2')
+    const tabId1 = store.addTab('Tab 1')
+    const tabId2 = store.addTab('Tab 2')
 
     store.setActiveTab(tabId1)
     expect(store.activeTab?.id).toBe(tabId1)
-    expect(store.activeTab?.name).toBe('頁籤 1')
+    expect(store.activeTab?.name).toBe('Tab 1')
 
     store.setActiveTab(tabId2)
     expect(store.activeTab?.id).toBe(tabId2)
-    expect(store.activeTab?.name).toBe('頁籤 2')
+    expect(store.activeTab?.name).toBe('Tab 2')
   })
 
-  it('activeTab computed 當沒有活動頁籤時應該返回 null', () => {
+  it('activeTab computed should return null when there is no active tab', () => {
     const store = useTabsStore()
     expect(store.activeTab).toBeNull()
   })
 
-  it('activeTabContent computed 應該返回當前活動頁籤的內容', () => {
+  it('activeTabContent computed should return the content of the current active tab', () => {
     const store = useTabsStore()
-    const tabId = store.addTab('測試頁籤')
-    store.updateTabContent(tabId, '這是測試內容')
+    const tabId = store.addTab('Test Tab')
+    store.updateTabContent(tabId, 'this is test content')
 
-    expect(store.activeTabContent).toBe('這是測試內容')
+    expect(store.activeTabContent).toBe('this is test content')
   })
 
-  it('activeTabContent computed 當沒有活動頁籤時應該返回空字串', () => {
+  it('activeTabContent computed should return empty string when there is no active tab', () => {
     const store = useTabsStore()
     expect(store.activeTabContent).toBe('')
   })
 
-  it('刪除活動頁籤時應該切換到下一個頁籤', () => {
+  it('should switch to the next tab when the active tab is removed', () => {
     const store = useTabsStore()
-    store.addTab('頁籤 1')
-    const tabId2 = store.addTab('頁籤 2')
-    const tabId3 = store.addTab('頁籤 3')
+    store.addTab('Tab 1')
+    const tabId2 = store.addTab('Tab 2')
+    const tabId3 = store.addTab('Tab 3')
 
     store.setActiveTab(tabId2)
     store.removeTab(tabId2)
 
-    // 應該切換到下一個頁籤（tabId3）
+    // Should switch to the next tab (tabId3)
     expect(store.activeTabId).toBe(tabId3)
     expect(store.tabs.length).toBe(2)
   })
 
-  it('刪除活動頁籤（最後一個）時應該切換到上一個頁籤', () => {
+  it('should switch to the previous tab when the last active tab is removed', () => {
     const store = useTabsStore()
-    const tabId1 = store.addTab('頁籤 1')
-    const tabId2 = store.addTab('頁籤 2')
+    const tabId1 = store.addTab('Tab 1')
+    const tabId2 = store.addTab('Tab 2')
 
     store.setActiveTab(tabId2)
     store.removeTab(tabId2)
 
-    // 應該切換到上一個頁籤（tabId1）
+    // Should switch to the previous tab (tabId1)
     expect(store.activeTabId).toBe(tabId1)
     expect(store.tabs.length).toBe(1)
   })
 
-  it('刪除非活動頁籤時不應該改變活動頁籤', () => {
+  it('should not change the active tab when a non-active tab is removed', () => {
     const store = useTabsStore()
-    const tabId1 = store.addTab('頁籤 1')
-    const tabId2 = store.addTab('頁籤 2')
+    const tabId1 = store.addTab('Tab 1')
+    const tabId2 = store.addTab('Tab 2')
 
     store.setActiveTab(tabId1)
     store.removeTab(tabId2)
@@ -152,58 +152,58 @@ describe('tabsStore', () => {
     expect(store.tabs.length).toBe(1)
   })
 
-  it('setActiveTab 切換到不存在的頁籤時不應該改變活動頁籤', () => {
+  it('setActiveTab should not change the active tab when switching to a non-existent tab', () => {
     const store = useTabsStore()
-    const tabId1 = store.addTab('頁籤 1')
+    const tabId1 = store.addTab('Tab 1')
 
-    store.setActiveTab('不存在的頁籤')
+    store.setActiveTab('non-existent tab')
     expect(store.activeTabId).toBe(tabId1)
   })
 
-  it('renameTab 當名稱為空時不應該更新', () => {
+  it('renameTab should not update when name is empty', () => {
     const store = useTabsStore()
-    const tabId = store.addTab('原始名稱')
+    const tabId = store.addTab('original name')
 
     store.renameTab(tabId, '   ')
     const tab = store.tabs.find(t => t.id === tabId)
-    expect(tab?.name).toBe('原始名稱')
+    expect(tab?.name).toBe('original name')
   })
 
-  it('renameTab 應該自動去除前後空白', () => {
+  it('renameTab should automatically trim whitespace', () => {
     const store = useTabsStore()
-    const tabId = store.addTab('原始名稱')
+    const tabId = store.addTab('original name')
 
-    store.renameTab(tabId, '  新名稱  ')
+    store.renameTab(tabId, '  new name  ')
     const tab = store.tabs.find(t => t.id === tabId)
-    expect(tab?.name).toBe('新名稱')
+    expect(tab?.name).toBe('new name')
   })
 
-  it('updateTabContent 更新不存在的頁籤時不應該拋出錯誤', () => {
+  it('updateTabContent should not throw error when updating a non-existent tab', () => {
     const store = useTabsStore()
-    store.addTab('頁籤 1')
+    store.addTab('Tab 1')
 
-    expect(() => store.updateTabContent('不存在的頁籤', '內容')).not.toThrow()
+    expect(() => store.updateTabContent('non-existent tab', 'content')).not.toThrow()
   })
 
-  it('應該能夠從 localStorage 載入資料', () => {
+  it('should be able to load data from localStorage', () => {
     const store = useTabsStore()
-    store.addTab('頁籤 1')
-    const tabId2 = store.addTab('頁籤 2')
+    store.addTab('Tab 1')
+    const tabId2 = store.addTab('Tab 2')
     store.setActiveTab(tabId2)
     store.setFontSize(16)
 
-    // 創建新的 store 實例來測試載入
+    // Create a new store instance to test loading
     const newStore = useTabsStore()
     newStore.loadFromStore()
 
     expect(newStore.tabs.length).toBe(2)
-    expect(newStore.tabs[0].name).toBe('頁籤 1')
-    expect(newStore.tabs[1].name).toBe('頁籤 2')
+    expect(newStore.tabs[0].name).toBe('Tab 1')
+    expect(newStore.tabs[1].name).toBe('Tab 2')
     expect(newStore.activeTabId).toBe(tabId2)
     expect(newStore.fontSize).toBe(16)
   })
 
-  it('loadFromStore 當 localStorage 為空時應該返回 false', () => {
+  it('loadFromStore should return false when localStorage is empty', () => {
     const store = useTabsStore()
     localStorage.clear()
 
@@ -211,12 +211,12 @@ describe('tabsStore', () => {
     expect(result).toBe(false)
   })
 
-  it('loadFromStore 當活動頁籤不存在時應該切換到第一個頁籤', () => {
+  it('loadFromStore should switch to the first tab when the active tab does not exist', () => {
     const store = useTabsStore()
-    const tabId1 = store.addTab('頁籤 1')
-    store.addTab('頁籤 2')
+    const tabId1 = store.addTab('Tab 1')
+    store.addTab('Tab 2')
 
-    // 手動設置 localStorage 中的 activeTabId 為不存在的 ID
+    // Manually set activeTabId to a non-existent ID in localStorage
     const data = {
       tabs: store.tabs.map(tab => ({
         id: tab.id,
@@ -224,7 +224,7 @@ describe('tabsStore', () => {
         content: tab.content,
         createdAt: tab.createdAt
       })),
-      activeTabId: '不存在的頁籤',
+      activeTabId: 'non-existent tab',
       fontSize: 14
     }
     localStorage.setItem('markdown-mermaid-editor-data', JSON.stringify(data))
@@ -236,19 +236,19 @@ describe('tabsStore', () => {
     expect(newStore.activeTabId).toBe(tabId1)
   })
 
-  it('loadFromStore 應該限制字體大小在 10-24 之間', () => {
-    // 設置超出範圍的字體大小（需要至少一個 tab，否則 loadFromStore 不會載入）
+  it('loadFromStore should restrict font size between 10-24', () => {
+    // Set out-of-range font size (at least one tab is needed, otherwise loadFromStore won't load)
     const data = {
       tabs: [
         {
           id: 'tab-1',
-          name: '測試頁籤',
-          content: '內容',
+          name: 'Test Tab',
+          content: 'content',
           createdAt: Date.now()
         }
       ],
       activeTabId: 'tab-1',
-      fontSize: 5 // 小於 10
+      fontSize: 5 // less than 10
     }
     localStorage.setItem('markdown-mermaid-editor-data', JSON.stringify(data))
 
@@ -257,7 +257,7 @@ describe('tabsStore', () => {
 
     expect(newStore.fontSize).toBe(10)
 
-    // 測試大於 24 的情況
+    // Test case for greater than 24
     data.fontSize = 30
     localStorage.setItem('markdown-mermaid-editor-data', JSON.stringify(data))
 
@@ -267,10 +267,10 @@ describe('tabsStore', () => {
     expect(newStore2.fontSize).toBe(24)
   })
 
-  it('saveToStore 應該能夠儲存當前狀態到 localStorage', () => {
+  it('saveToStore should be able to save the current state to localStorage', () => {
     const store = useTabsStore()
-    store.addTab('頁籤 1')
-    const tabId2 = store.addTab('頁籤 2')
+    store.addTab('Tab 1')
+    const tabId2 = store.addTab('Tab 2')
     store.setActiveTab(tabId2)
     store.setFontSize(18)
 
@@ -284,45 +284,45 @@ describe('tabsStore', () => {
     expect(parsed.fontSize).toBe(18)
   })
 
-  it('initialize 當沒有儲存資料時應該創建預設頁籤', () => {
+  it('initialize should create a default tab when no data is saved', () => {
     localStorage.clear()
     const store = useTabsStore()
-    
+
     store.initialize()
 
     expect(store.tabs.length).toBe(1)
-    expect(store.tabs[0].name).toBe('歡迎使用')
+    expect(store.tabs[0].name).toBe('Welcome')
     expect(store.activeTabId).not.toBeNull()
   })
 
-  it('initialize 當有儲存資料時應該載入資料而不創建新頁籤', () => {
+  it('initialize should load data without creating a new tab when data exists', () => {
     const store = useTabsStore()
-    store.addTab('已存在的頁籤')
+    store.addTab('Existing Tab')
     store.setFontSize(16)
 
     const newStore = useTabsStore()
     newStore.initialize()
 
     expect(newStore.tabs.length).toBe(1)
-    expect(newStore.tabs[0].name).toBe('已存在的頁籤')
+    expect(newStore.tabs[0].name).toBe('Existing Tab')
     expect(newStore.fontSize).toBe(16)
   })
 
-  it('addTab 不提供名稱時應該使用預設名稱', () => {
+  it('addTab should use default name when no name is provided', () => {
     const store = useTabsStore()
     store.addTab()
 
-    expect(store.tabs[0].name).toBe('新文件 1')
-    
+    expect(store.tabs[0].name).toBe('New Document 1')
+
     store.addTab()
-    expect(store.tabs[1].name).toBe('新文件 2')
+    expect(store.tabs[1].name).toBe('New Document 2')
   })
 
-  it('removeTab 刪除不存在的頁籤時不應該拋出錯誤', () => {
+  it('removeTab should not throw error when removing a non-existent tab', () => {
     const store = useTabsStore()
-    store.addTab('頁籤 1')
+    store.addTab('Tab 1')
 
-    expect(() => store.removeTab('不存在的頁籤')).not.toThrow()
+    expect(() => store.removeTab('non-existent tab')).not.toThrow()
     expect(store.tabs.length).toBe(1)
   })
 })

@@ -1,7 +1,7 @@
 import { config } from '@vue/test-utils'
 import { createVuetify } from 'vuetify'
 
-// 配置 Vuetify 用於測試環境（使用最小配置避免 CSS 導入問題）
+// Configure Vuetify for testing environment (use minimal config to avoid CSS import issues)
 const vuetify = createVuetify({
   theme: {
     defaultTheme: 'light',
@@ -20,5 +20,5 @@ const vuetify = createVuetify({
   },
 })
 
-// 全域配置 Vue Test Utils
+// Global configuration for Vue Test Utils
 config.global.plugins = [vuetify]

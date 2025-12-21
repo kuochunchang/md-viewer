@@ -29,13 +29,13 @@ export const useTabsStore = defineStore('tabs', () => {
     const isFirstTab = tabs.value.length === 0
     const newTab: Tab = {
       id: `tab-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      name: name || `新文件 ${tabs.value.length + 1}`,
-      content: isFirstTab ? DEFAULT_CONTENT : '', // 只有第一個頁籤使用範本，之後的都為空白
+      name: name || `New Document ${tabs.value.length + 1}`,
+      content: isFirstTab ? DEFAULT_CONTENT : '', // Only the first tab uses the template, others are blank
       createdAt: Date.now()
     }
     tabs.value.push(newTab)
     activeTabId.value = newTab.id
-    // 新增頁籤後立即儲存（不使用防抖）
+    // Save immediately after adding a tab (avoid debounce)
     saveToStore()
     return newTab.id
   }
@@ -46,27 +46,27 @@ export const useTabsStore = defineStore('tabs', () => {
 
     tabs.value.splice(index, 1)
 
-    // 如果刪除的是當前活動頁籤，切換到其他頁籤
+    // If deleting the active tab, switch to another tab
     if (activeTabId.value === id) {
       if (tabs.value.length > 0) {
-        // 優先選擇下一個頁籤，如果沒有則選擇上一個
+        // Prefer next tab, otherwise previous tab
         const nextIndex = index < tabs.value.length ? index : index - 1
         activeTabId.value = tabs.value[nextIndex]?.id || tabs.value[0]?.id || null
       } else {
         activeTabId.value = null
-        // 如果沒有頁籤了，自動創建一個新頁籤
+        // If no tabs left, automatically create one
         addTab()
-        return // addTab 已經會觸發儲存
+        return // addTab already triggers save
       }
     }
-    // 刪除頁籤後立即儲存（不使用防抖）
+    // Save immediately after removing a tab (avoid debounce)
     saveToStore()
   }
 
   function setActiveTab(id: string): void {
     if (tabs.value.some(tab => tab.id === id)) {
       activeTabId.value = id
-      // 切換頁籤後立即儲存（不使用防抖）
+      // Save immediately after switching tab (avoid debounce)
       saveToStore()
     }
   }
@@ -82,18 +82,18 @@ export const useTabsStore = defineStore('tabs', () => {
     const tab = tabs.value.find(t => t.id === id)
     if (tab && name.trim()) {
       tab.name = name.trim()
-      // 重新命名後立即儲存（不使用防抖）
+      // Save immediately after renaming (avoid debounce)
       saveToStore()
     }
   }
 
   function setFontSize(size: number): void {
-    fontSize.value = Math.max(10, Math.min(24, size)) // 限制在 10-24 之間
+    fontSize.value = Math.max(10, Math.min(24, size)) // Limit to 10-24
     saveToStore()
   }
 
   /**
-   * 儲存當前狀態至 localStorage
+   * Save current state to localStorage
    */
   function saveToStore(): void {
     const data: StoredTabsData = {
@@ -110,25 +110,25 @@ export const useTabsStore = defineStore('tabs', () => {
   }
 
   /**
-   * 從 localStorage 載入狀態
+   * Load state from localStorage
    */
   function loadFromStore(): boolean {
     const stored = loadFromLocalStorage()
     if (stored && stored.tabs.length > 0) {
-      // 恢復頁籤資料
+      // Restore tab data
       tabs.value = stored.tabs.map(tab => ({
         id: tab.id,
         name: tab.name,
         content: tab.content,
         createdAt: tab.createdAt
       }))
-      // 恢復活動頁籤（如果存在）
+      // Restore active tab (if exists)
       if (stored.activeTabId && tabs.value.some(t => t.id === stored.activeTabId)) {
         activeTabId.value = stored.activeTabId
       } else {
         activeTabId.value = tabs.value[0]?.id || null
       }
-      // 恢復字體大小
+      // Restore font size
       if (stored.fontSize) {
         fontSize.value = Math.max(10, Math.min(24, stored.fontSize))
       }
@@ -137,14 +137,14 @@ export const useTabsStore = defineStore('tabs', () => {
     return false
   }
 
-  // 使用防抖的儲存函數（500ms 延遲）
+  // Debounced save function (500ms delay)
   const debouncedSave = debounce(saveToStore, 500)
 
-  // 監聽狀態變化，自動儲存
+  // Watch for state changes and auto-save
   watch(
     [tabs, activeTabId, fontSize],
     () => {
-      // 只有在已經初始化後才自動儲存（避免初始化時觸發）
+      // Only auto-save after initialization (avoid triggering during initial load)
       if (tabs.value.length > 0) {
         debouncedSave()
       }
@@ -152,11 +152,11 @@ export const useTabsStore = defineStore('tabs', () => {
     { deep: true }
   )
 
-  // 初始化：先嘗試載入儲存的資料，如果沒有則創建預設頁籤
+  // Initialization: Try loading saved data, otherwise create default tab
   function initialize(): void {
     const loaded = loadFromStore()
     if (!loaded && tabs.value.length === 0) {
-      addTab('歡迎使用')
+      addTab('Welcome')
     }
   }
 

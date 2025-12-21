@@ -28,12 +28,12 @@
 
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
-import { useTabsStore } from './stores/tabsStore'
-import SplitPane from './components/SplitPane.vue'
 import MarkdownEditor from './components/MarkdownEditor.vue'
 import MarkdownPreview from './components/MarkdownPreview.vue'
-import TabBar from './components/TabBar.vue'
 import SettingsMenu from './components/SettingsMenu.vue'
+import SplitPane from './components/SplitPane.vue'
+import TabBar from './components/TabBar.vue'
+import { useTabsStore } from './stores/tabsStore'
 
 const tabsStore = useTabsStore()
 
@@ -46,7 +46,7 @@ function handleContentUpdate(content: string) {
   }
 }
 
-// 初始化：確保至少有一個頁籤
+// Initialization: ensure at least one tab exists
 onMounted(() => {
   tabsStore.initialize()
 })
@@ -58,20 +58,20 @@ onMounted(() => {
   height: 100vh;
   overflow: hidden;
 
-  // RWD: 手機版面調整
+  // RWD: Mobile layout adjustment
   @media (max-width: 600px) {
-    height: calc(100vh - 56px); // 扣除 app-bar 高度
+    height: calc(100vh - 56px); // Subtract app-bar height
   }
 }
 
-// 全域樣式：優化 app-bar 在手機上的顯示
+// Global styles: Optimize app-bar display on mobile
 :deep(.app-bar) {
   .v-toolbar__content {
     padding: 0;
     overflow: hidden;
   }
 
-  // RWD: 手機版面調整
+  // RWD: Mobile layout adjustment
   @media (max-width: 600px) {
     .v-toolbar__content {
       padding: 0 4px;

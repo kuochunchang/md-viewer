@@ -1,36 +1,36 @@
-export const DEFAULT_CONTENT = `# Markdown & Mermaid 範例
+export const DEFAULT_CONTENT = `# Markdown & Mermaid Example
 
-這是一個完整的 Markdown 與 Mermaid 圖表範例文件。
+This is a comprehensive example document showcasing Markdown and Mermaid diagrams.
 
-## 📝 Markdown 語法示範
+## 📝 Markdown Syntax Demo
 
-### 標題層級
-這是一個三級標題，Markdown 支援六個層級的標題。
+### Heading Levels
+This is a Level 3 heading. Markdown supports six levels of headings.
 
-### 文字格式
-- **粗體文字**
-- *斜體文字*
-- ~~刪除線~~
-- \`行內程式碼\`
+### Text Formatting
+- **Bold text**
+- *Italic text*
+- ~~Strikethrough~~
+- \`Inline code\`
 
-### 列表
+### Lists
 
-#### 無序列表
-- 項目 1
-- 項目 2
-  - 子項目 2.1
-  - 子項目 2.2
-- 項目 3
+#### Unordered List
+- Item 1
+- Item 2
+  - Sub-item 2.1
+  - Sub-item 2.2
+- Item 3
 
-#### 有序列表
-1. 第一項
-2. 第二項
-3. 第三項
+#### Ordered List
+1. First item
+2. Second item
+3. Third item
 
-### 連結與圖片
-[連結文字](https://example.com)
+### Links and Images
+[Link Text](https://example.com)
 
-### 程式碼區塊
+### Code Blocks
 
 \`\`\`javascript
 function greet(name) {
@@ -49,64 +49,64 @@ def fibonacci(n):
 print(fibonacci(10))
 \`\`\`
 
-### 引用
-> 這是一個引用區塊。
-> 可以包含多行文字。
+### Blockquotes
+> This is a blockquote.
+> It can contain multiple lines of text.
 
 ---
 
-## 📊 Mermaid 圖表示範
+## 📊 Mermaid Diagram Demo
 
-### Flowchart（流程圖）
+### Flowchart
 
 \`\`\`mermaid
 graph TD
-    A[開始] --> B{判斷條件}
-    B -->|是| C[執行操作 A]
-    B -->|否| D[執行操作 B]
-    C --> E[結束]
+    A[Start] --> B{Condition}
+    B -->|Yes| C[Action A]
+    B -->|No| D[Action B]
+    C --> E[End]
     D --> E
 \`\`\`
 
-### Sequence Diagram（時序圖）
+### Sequence Diagram
 
 \`\`\`mermaid
 sequenceDiagram
-    participant 用戶
-    participant 前端
-    participant 後端
-    participant 資料庫
+    participant User
+    participant Frontend
+    participant Backend
+    participant Database
 
-    用戶->>前端: 發送請求
-    前端->>後端: API 呼叫
-    後端->>資料庫: 查詢資料
-    資料庫-->>後端: 返回結果
-    後端-->>前端: JSON 回應
-    前端-->>用戶: 顯示資料
+    User->>Frontend: Send Request
+    Frontend->>Backend: API Call
+    Backend->>Database: Query Data
+    Database-->>Backend: Return Result
+    Backend-->>Frontend: JSON Response
+    Frontend-->>User: Display Data
 \`\`\`
 
-### Gantt Chart（甘特圖）
+### Gantt Chart
 
 \`\`\`mermaid
 gantt
-    title 專案時程
+    title Project Timeline
     dateFormat  YYYY-MM-DD
-    section 階段一
-    需求分析           :a1, 2024-01-01, 7d
-    系統設計           :a2, after a1, 5d
-    section 階段二
-    開發實作           :b1, after a2, 14d
-    測試驗證           :b2, after b1, 7d
+    section Phase 1
+    Requirements Analysis :a1, 2024-01-01, 7d
+    System Design         :a2, after a1, 5d
+    section Phase 2
+    Development           :b1, after a2, 14d
+    Testing               :b2, after b1, 7d
 \`\`\`
 
 ---
 
-## 🎉 開始使用
+## 🎉 Getting Started
 
-1. 編輯左側的 Markdown 內容
-2. 右側會即時顯示渲染結果
-3. 使用多頁籤管理多個文件
-4. 內容會自動儲存至瀏覽器
+1. Edit the Markdown content on the left
+2. See the rendered output in real-time on the right
+3. Manage multiple documents using tabs
+4. Content is automatically saved to your browser
 
-享受寫作的樂趣！ ✨
+Enjoy writing! ✨
 `

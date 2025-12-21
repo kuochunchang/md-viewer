@@ -22,7 +22,7 @@
     </div>
     <ConfirmDialog
       v-model="showConfirmDialog"
-      title="確認刪除"
+      title="Confirm Delete"
       :message="confirmMessage"
       @confirm="confirmDelete"
       @cancel="cancelDelete"
@@ -50,9 +50,9 @@ const pendingDeleteId = ref<string | null>(null)
 const confirmMessage = computed(() => {
   if (pendingDeleteId.value) {
     const tab = tabs.value.find(t => t.id === pendingDeleteId.value)
-    return `確定要刪除「${tab?.name || '此頁籤'}」嗎？`
+    return `Are you sure you want to delete "${tab?.name || 'this tab'}"?`
   }
-  return '確定要刪除此頁籤嗎？'
+  return 'Are you sure you want to delete this tab?'
 })
 
 function handleAddTab() {
@@ -64,7 +64,7 @@ function handleSelect(id: string) {
 }
 
 function handleClose(id: string) {
-  // 如果只有一個頁籤，不允許刪除
+  // Don't allow deletion if only one tab exists
   if (tabs.value.length <= 1) {
     return
   }
@@ -94,7 +94,7 @@ function handleRename(id: string, name: string) {
   align-items: flex-end;
   gap: 8px;
   padding: 8px 8px 0;
-  background-color: #ECECEC; // 亮色模式：VS Code 風格淺灰
+  background-color: #ECECEC; // Light mode: VS Code style light gray
   border-bottom: 1px solid #E1E1E1;
   overflow-x: auto;
   overflow-y: hidden;
@@ -108,9 +108,9 @@ function handleRename(id: string, name: string) {
     padding: 4px 8px 0;
   }
 
-  // 深色主題適配
+  // Dark theme compatibility
   &.is-dark {
-    background-color: #252526; // 深色模式：VS Code 側邊欄/標題列顏色
+    background-color: #252526; // Dark mode: VS Code sidebar/title bar color
     border-bottom: 1px solid #2D2D2D;
 
     .add-tab-btn {
