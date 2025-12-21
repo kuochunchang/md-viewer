@@ -1,0 +1,76 @@
+@import './variables.scss';
+
+// 導入 highlight.js 樣式
+@import 'highlight.js/styles/github.css';
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Roboto', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#app {
+  width: 100%;
+  height: 100vh;
+  overflow: hidden;
+}
+
+// highlight.js 深色主題適配
+.v-theme--dark {
+  // 覆蓋 highlight.js 的淺色主題顏色，使其適配深色主題
+  .hljs {
+    background: rgba(255, 255, 255, 0.05) !important;
+    color: rgba(255, 255, 255, 0.9) !important;
+  }
+
+  // 調整深色主題下的語法高亮顏色
+  .hljs-keyword,
+  .hljs-selector-tag,
+  .hljs-literal,
+  .hljs-title,
+  .hljs-section,
+  .hljs-doctag,
+  .hljs-type,
+  .hljs-name,
+  .hljs-strong {
+    color: #c792ea !important;
+  }
+
+  .hljs-string,
+  .hljs-title,
+  .hljs-section,
+  .hljs-built_in,
+  .hljs-attr,
+  .hljs-symbol,
+  .hljs-bullet,
+  .hljs-addition,
+  .hljs-variable,
+  .hljs-template-tag,
+  .hljs-template-variable {
+    color: #c3e88d !important;
+  }
+
+  .hljs-comment,
+  .hljs-quote,
+  .hljs-deletion,
+  .hljs-meta {
+    color: rgba(255, 255, 255, 0.5) !important;
+  }
+
+  .hljs-number,
+  .hljs-regexp,
+  .hljs-link {
+    color: #f78c6c !important;
+  }
+
+  .hljs-function,
+  .hljs-class .hljs-title {
+    color: #82aaff !important;
+  }
+}
