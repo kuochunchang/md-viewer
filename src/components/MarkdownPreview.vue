@@ -254,33 +254,36 @@ onMounted(async () => {
     }
 
     // Table styles
-    :deep(table) {
+    :deep(.table-container) {
       width: 100%;
-      border-collapse: collapse;
-      margin: 1em 0;
       overflow-x: auto;
-      display: block;
+      margin: 1em 0;
+      border-radius: 4px;
+      border: 1px solid rgba(var(--v-theme-on-surface), 0.1);
 
-      thead,
-      tbody {
-        display: table;
+      table {
         width: 100%;
-      }
+        min-width: 600px; // Ensure table doesn't get too squashed
+        border-collapse: collapse;
+        margin: 0;
 
-      th,
-      td {
-        border: 1px solid rgba(var(--v-theme-on-surface), 0.2);
-        padding: 0.75em;
-        text-align: left;
-      }
+        th,
+        td {
+          border: 1px solid rgba(var(--v-theme-on-surface), 0.2);
+          padding: 0.75em 1em;
+          text-align: left;
+          word-break: normal;
+        }
 
-      th {
-        background-color: rgba(var(--v-theme-on-surface), 0.05);
-        font-weight: 600;
-      }
+        th {
+          background-color: rgba(var(--v-theme-on-surface), 0.05);
+          font-weight: 600;
+          white-space: nowrap;
+        }
 
-      tr:nth-child(even) {
-        background-color: rgba(var(--v-theme-on-surface), 0.02);
+        tr:nth-child(even) {
+          background-color: rgba(var(--v-theme-on-surface), 0.02);
+        }
       }
     }
 

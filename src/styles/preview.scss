@@ -124,21 +124,31 @@
   }
 
   // Table styles
-  table {
+  .table-container {
     width: 100%;
-    border-collapse: collapse;
+    overflow-x: auto;
     margin-bottom: $spacing-md;
+    border: 1px solid currentColor;
+    border-radius: 4px;
 
-    th,
-    td {
-      border: 1px solid currentColor;
-      padding: $spacing-sm;
-      text-align: left;
-    }
+    table {
+      width: 100%;
+      min-width: 600px;
+      border-collapse: collapse;
+      margin: 0;
 
-    th {
-      background-color: rgba(0, 0, 0, 0.05);
-      font-weight: 600;
+      th,
+      td {
+        border: 1px solid currentColor;
+        padding: $spacing-sm $spacing-md;
+        text-align: left;
+      }
+
+      th {
+        background-color: rgba(0, 0, 0, 0.05);
+        font-weight: 600;
+        white-space: nowrap;
+      }
     }
   }
 
@@ -156,9 +166,17 @@
       color: rgba(255, 255, 255, 0.7);
     }
 
-    table {
-      th {
-        background-color: rgba(255, 255, 255, 0.1);
+    .table-container {
+      border-color: rgba(255, 255, 255, 0.1);
+
+      table {
+        th {
+          background-color: rgba(255, 255, 255, 0.1);
+        }
+
+        tr:nth-child(even) {
+          background-color: rgba(255, 255, 255, 0.05);
+        }
       }
     }
   }

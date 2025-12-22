@@ -53,9 +53,9 @@ export function useMarkdown(content: Ref<string>) {
     return `<a href="${escapeHtml(href)}"${target}${titleAttr}>${text}</a>`
   }
 
-  // Custom table renderer, enhanced table styling
+  // Custom table renderer, enhanced table styling with wrapper for scrolling
   renderer.table = (header: string, body: string) => {
-    return `<table class="markdown-table">\n<thead>\n${header}</thead>\n<tbody>\n${body}</tbody>\n</table>`
+    return `<div class="table-container">\n<table class="markdown-table">\n<thead>\n${header}</thead>\n<tbody>\n${body}</tbody>\n</table>\n</div>`
   }
 
   // Custom blockquote renderer
