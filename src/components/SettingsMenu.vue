@@ -1,5 +1,19 @@
 <template>
   <div class="settings-menu">
+    <!-- PDF Export Button -->
+    <v-btn
+      icon
+      variant="text"
+      size="small"
+      class="pdf-export-btn"
+      title="Download as PDF"
+      :loading="isExporting"
+      :disabled="isExporting"
+      @click="handlePdfExport"
+    >
+      <v-icon>mdi-file-pdf-box</v-icon>
+    </v-btn>
+
     <!-- Theme Toggle Button -->
     <v-btn
       icon
@@ -87,10 +101,14 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useTheme } from 'vuetify'
+import { usePdfExport } from '../composables/usePdfExport'
 import { useTabsStore } from '../stores/tabsStore'
 
 const theme = useTheme()
 const tabsStore = useTabsStore()
+
+// PDF Export
+const { isExporting, exportPreviewToPdf } = usePdfExport()
 
 // Theme state
 const isDark = computed(() => theme.global.name.value === 'dark')
@@ -106,6 +124,17 @@ const fontSizePresets = [12, 14, 16, 18, 20]
 watch(fontSize, (newValue) => {
   localFontSize.value = newValue
 })
+
+// Handle PDF Export
+async function handlePdfExport() {
+  try {
+    const tabName = tabsStore.activeTab?.name || 'document'
+    await exportPreviewToPdf('.preview-content', tabName)
+  } catch (error) {
+    console.error('PDF export failed:', error)
+    // Could add a snackbar notification here in the future
+  }
+}
 
 // Toggle Theme
 function toggleTheme() {
@@ -143,6 +172,7 @@ if (savedTheme === 'dark' || savedTheme === 'light') {
   padding-right: 8px;
 }
 
+.pdf-export-btn,
 .theme-toggle-btn,
 .font-size-btn {
   flex-shrink: 0;
@@ -175,6 +205,7 @@ if (savedTheme === 'dark' || savedTheme === 'light') {
     padding-right: 4px;
   }
 
+  .pdf-export-btn,
   .theme-toggle-btn,
   .font-size-btn {
     :deep(.v-btn) {
