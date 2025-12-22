@@ -1,12 +1,27 @@
 <template>
   <v-app>
-    <v-app-bar class="app-bar">
+    <v-app-bar class="app-bar" flat border>
+      <v-btn
+        icon
+        variant="text"
+        size="small"
+        class="layout-toggle-btn mr-2"
+        :title="showEditor ? 'Hide Editor (Full Preview)' : 'Show Editor (Split View)'"
+        @click="tabsStore.toggleEditor"
+      >
+        <v-icon>{{ showEditor ? 'mdi-backburger' : 'mdi-forwardburger' }}</v-icon>
+      </v-btn>
       <TabBar />
       <SettingsMenu />
     </v-app-bar>
     <v-main>
       <div class="app-container">
-        <SplitPane :initial-ratio="0.35" :min-ratio="0.2" :max-ratio="0.8">
+        <SplitPane
+          :initial-ratio="0.35"
+          :min-ratio="0.1"
+          :max-ratio="0.9"
+          :collapsed="!showEditor"
+        >
           <template #left>
             <MarkdownEditor
               :model-value="activeTabContent"
@@ -39,6 +54,7 @@ const tabsStore = useTabsStore()
 
 const activeTabContent = computed(() => tabsStore.activeTabContent)
 const fontSize = computed(() => tabsStore.fontSize)
+const showEditor = computed(() => tabsStore.showEditor)
 
 function handleContentUpdate(content: string) {
   if (tabsStore.activeTabId) {
@@ -55,14 +71,14 @@ onMounted(() => {
 <style scoped lang="scss">
 .app-container {
   width: 100%;
-  height: 100vh;
+  height: 100%;
   overflow: hidden;
-
-  // RWD: Mobile layout adjustment
-  @media (max-width: 600px) {
-    height: calc(100vh - 56px); // Subtract app-bar height
-  }
 }
+
+:deep(.v-main) {
+  height: 100vh;
+}
+
 
 // Global styles: Optimize app-bar display on mobile
 :deep(.app-bar) {
@@ -75,6 +91,15 @@ onMounted(() => {
   @media (max-width: 600px) {
     .v-toolbar__content {
       padding: 0 4px;
+    }
+  }
+
+  .layout-toggle-btn {
+    margin-left: 8px;
+    color: rgba(var(--v-theme-on-surface), 0.7);
+
+    &:hover {
+      color: var(--v-theme-primary);
     }
   }
 }

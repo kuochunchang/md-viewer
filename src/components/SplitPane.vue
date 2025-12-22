@@ -1,8 +1,8 @@
 <template>
-  <div class="split-pane" :class="{ 'is-vertical': isVertical }">
+  <div class="split-pane" :class="{ 'is-vertical': isVertical, 'is-collapsed': collapsed }">
     <div
       class="split-pane-left"
-      :style="{ [sizeProperty]: leftSize + '%' }"
+      :style="{ [sizeProperty]: (collapsed ? 0 : leftSize) + '%' }"
     >
       <slot name="left"></slot>
     </div>
@@ -15,7 +15,7 @@
     </div>
     <div
       class="split-pane-right"
-      :style="{ [sizeProperty]: rightSize + '%' }"
+      :style="{ [sizeProperty]: (collapsed ? 100 : rightSize) + '%' }"
     >
       <slot name="right"></slot>
     </div>
@@ -29,12 +29,14 @@ interface Props {
   initialRatio?: number // Default split ratio, default 0.35
   minRatio?: number // Minimum ratio limit
   maxRatio?: number // Maximum ratio limit
+  collapsed?: boolean // Whether the left side is collapsed
 }
 
 const props = withDefaults(defineProps<Props>(), {
   initialRatio: 0.35,
-  minRatio: 0.2,
-  maxRatio: 0.8
+  minRatio: 0.1,
+  maxRatio: 0.9,
+  collapsed: false
 })
 
 const leftSize = ref(props.initialRatio * 100)
@@ -109,10 +111,21 @@ onUnmounted(() => {
   }
 }
 
-.split-pane-left,
+.split-pane-left {
+  overflow: hidden;
+  position: relative;
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), height 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s;
+
+  .is-collapsed & {
+    opacity: 0;
+    pointer-events: none;
+  }
+}
+
 .split-pane-right {
   overflow: hidden;
   position: relative;
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), height 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .split-pane-divider {
@@ -122,7 +135,13 @@ onUnmounted(() => {
   user-select: none;
   flex-shrink: 0;
   width: 4px;
-  transition: background-color 0.2s;
+  transition: background-color 0.2s, width 0.3s, opacity 0.3s;
+
+  .is-collapsed & {
+    width: 0 !important;
+    opacity: 0;
+    pointer-events: none;
+  }
 
   &:hover {
     background-color: rgba(var(--v-theme-primary), 0.5);
@@ -149,6 +168,11 @@ onUnmounted(() => {
   cursor: row-resize;
   width: 100%;
   height: 4px;
+
+  .is-collapsed & {
+    height: 0 !important;
+    width: 100% !important;
+  }
 
   .divider-handle {
     width: 40px;

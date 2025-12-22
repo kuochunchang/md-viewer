@@ -14,6 +14,7 @@ export const useTabsStore = defineStore('tabs', () => {
   const tabs = ref<Tab[]>([])
   const activeTabId = ref<string | null>(null)
   const fontSize = ref<number>(14)
+  const showEditor = ref<boolean>(true)
 
   // Getters
   const activeTab = computed(() => {
@@ -92,6 +93,11 @@ export const useTabsStore = defineStore('tabs', () => {
     saveToStore()
   }
 
+  function toggleEditor(): void {
+    showEditor.value = !showEditor.value
+    saveToStore()
+  }
+
   /**
    * Save current state to localStorage
    */
@@ -104,7 +110,8 @@ export const useTabsStore = defineStore('tabs', () => {
         createdAt: tab.createdAt
       })),
       activeTabId: activeTabId.value,
-      fontSize: fontSize.value
+      fontSize: fontSize.value,
+      showEditor: showEditor.value
     }
     saveToLocalStorage(data)
   }
@@ -132,6 +139,10 @@ export const useTabsStore = defineStore('tabs', () => {
       if (stored.fontSize) {
         fontSize.value = Math.max(10, Math.min(24, stored.fontSize))
       }
+      // Restore editor visibility
+      if (stored.showEditor !== undefined) {
+        showEditor.value = stored.showEditor
+      }
       return true
     }
     return false
@@ -142,7 +153,7 @@ export const useTabsStore = defineStore('tabs', () => {
 
   // Watch for state changes and auto-save
   watch(
-    [tabs, activeTabId, fontSize],
+    [tabs, activeTabId, fontSize, showEditor],
     () => {
       // Only auto-save after initialization (avoid triggering during initial load)
       if (tabs.value.length > 0) {
@@ -165,6 +176,7 @@ export const useTabsStore = defineStore('tabs', () => {
     tabs,
     activeTabId,
     fontSize,
+    showEditor,
     // Getters
     activeTab,
     activeTabContent,
@@ -175,6 +187,7 @@ export const useTabsStore = defineStore('tabs', () => {
     updateTabContent,
     renameTab,
     setFontSize,
+    toggleEditor,
     initialize,
     saveToStore,
     loadFromStore

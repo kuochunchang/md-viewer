@@ -12,6 +12,7 @@ export interface StoredTabsData {
   }>
   activeTabId: string | null
   fontSize: number
+  showEditor?: boolean
 }
 
 const STORAGE_KEY = 'markdown-mermaid-editor-data'
