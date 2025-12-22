@@ -89,10 +89,13 @@ export function useMarkdown(content: Ref<string>) {
 }
 
 /**
- * HTML escape function, prevents XSS attacks
+ * HTML escape function, prevents XSS attacks and attribute truncation
  */
 function escapeHtml(text: string): string {
-  const div = document.createElement('div')
-  div.textContent = text
-  return div.innerHTML
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
 }

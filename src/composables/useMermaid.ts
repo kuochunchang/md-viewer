@@ -143,7 +143,8 @@ export function useMermaid() {
     const renderPromises = Array.from(mermaidContainers).map(async (el) => {
       const mermaidCode = el.getAttribute('data-mermaid-code')
       if (mermaidCode) {
-        await renderMermaid(el, mermaidCode)
+        // Unescape HTML entities since the code was escaped when stored in the data attribute
+        await renderMermaid(el, unescapeHtml(mermaidCode))
       }
     })
 
@@ -154,9 +155,22 @@ export function useMermaid() {
    * HTML escape function
    */
   function escapeHtml(text: string): string {
+    return text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;')
+  }
+
+  /**
+   * HTML unescape function - decodes HTML entities back to original characters
+   * This is needed because mermaid code is HTML-escaped when stored in data attributes
+   */
+  function unescapeHtml(text: string): string {
     const div = document.createElement('div')
-    div.textContent = text
-    return div.innerHTML
+    div.innerHTML = text
+    return div.textContent || ''
   }
 
   // Initialize on component mount
