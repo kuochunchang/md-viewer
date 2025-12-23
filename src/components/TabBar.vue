@@ -94,8 +94,8 @@ function handleRename(id: string, name: string) {
   align-items: flex-end;
   gap: 8px;
   padding: 8px 8px 0;
-  background-color: #ECECEC; // Light mode: VS Code style light gray
-  border-bottom: 1px solid #E1E1E1;
+  background-color: transparent;
+  border-bottom: none;
   overflow-x: auto;
   overflow-y: hidden;
   flex: 1;
@@ -110,9 +110,6 @@ function handleRename(id: string, name: string) {
 
   // Dark theme compatibility
   &.is-dark {
-    background-color: #252526; // Dark mode: VS Code sidebar/title bar color
-    border-bottom: 1px solid #2D2D2D;
-
     .add-tab-btn {
       color: #969696;
       &:hover {

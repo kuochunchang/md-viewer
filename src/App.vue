@@ -1,6 +1,6 @@
 <template>
   <v-app>
-    <v-app-bar class="app-bar" flat border>
+    <v-app-bar class="app-bar" :class="{ 'is-dark': isDark }" flat>
       <v-btn
         icon
         variant="text"
@@ -43,6 +43,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
+import { useTheme } from 'vuetify'
 import MarkdownEditor from './components/MarkdownEditor.vue'
 import MarkdownPreview from './components/MarkdownPreview.vue'
 import SettingsMenu from './components/SettingsMenu.vue'
@@ -51,7 +52,9 @@ import TabBar from './components/TabBar.vue'
 import { useTabsStore } from './stores/tabsStore'
 
 const tabsStore = useTabsStore()
+const theme = useTheme()
 
+const isDark = computed(() => theme.global.name.value === 'dark')
 const activeTabContent = computed(() => tabsStore.activeTabContent)
 const fontSize = computed(() => tabsStore.fontSize)
 const showEditor = computed(() => tabsStore.showEditor)
@@ -82,6 +85,14 @@ onMounted(() => {
 
 // Global styles: Optimize app-bar display on mobile
 :deep(.app-bar) {
+  background-color: #ECECEC !important;
+  border-bottom: 1px solid #E1E1E1 !important;
+
+  &.is-dark {
+    background-color: #252526 !important;
+    border-bottom: 1px solid #2D2D2D !important;
+  }
+
   .v-toolbar__content {
     padding: 0;
     overflow: hidden;
