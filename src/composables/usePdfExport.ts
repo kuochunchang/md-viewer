@@ -56,53 +56,6 @@ export function usePdfExport() {
                 svg.style.backgroundColor = '#ffffff'
             })
 
-<<<<<<< Updated upstream
-            // Fix table borders for PDF export
-            const tableContainers = clonedElement.querySelectorAll('.table-container')
-            tableContainers.forEach((container) => {
-                (container as HTMLElement).style.border = 'none'
-            })
-
-            const tables = clonedElement.querySelectorAll('table')
-            tables.forEach((table) => {
-                table.style.borderCollapse = 'collapse'
-                table.style.width = '100%'
-                table.style.marginBottom = '20px'
-                table.style.border = '0.5px solid rgba(0, 0, 0, 0.08)'
-
-                const ths = table.querySelectorAll('th')
-                ths.forEach((th) => {
-                    th.style.border = '0.5px solid rgba(0, 0, 0, 0.08)'
-                    th.style.padding = '8px 12px'
-                    th.style.backgroundColor = 'rgba(0, 0, 0, 0.02)'
-                    th.style.fontWeight = '600'
-                })
-
-                const tds = table.querySelectorAll('td')
-                tds.forEach((td) => {
-                    td.style.border = '0.5px solid rgba(0, 0, 0, 0.08)'
-                    td.style.padding = '8px 12px'
-                })
-            })
-
-            // Configure html2pdf options
-            const pdfOptions = {
-                margin,
-                filename,
-                image: { type: 'jpeg', quality: 0.98 },
-                html2canvas: {
-                    scale: 3,
-                    useCORS: true,
-                    logging: false,
-                    backgroundColor: '#ffffff'
-                },
-                jsPDF: {
-                    unit: 'mm',
-                    format: pageSize,
-                    orientation
-                },
-                pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
-=======
             // Append to document for rendering
             document.body.appendChild(clonedElement)
 
@@ -188,7 +141,6 @@ export function usePdfExport() {
                     remainingHeight -= pageContentHeight
                     pageNum++
                 }
->>>>>>> Stashed changes
             }
 
             // Save the PDF
