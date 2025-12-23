@@ -1,11 +1,12 @@
-import html2pdf from 'html2pdf.js'
+import html2canvas from 'html2canvas'
+import { jsPDF } from 'jspdf'
 import { ref } from 'vue'
 
 export interface PdfExportOptions {
     filename?: string
-    margin?: number | [number, number, number, number]
-    pageSize?: 'a4' | 'letter' | 'legal'
-    orientation?: 'portrait' | 'landscape'
+    margin?: number
+    /** If true, generate a single continuous page without page breaks (default: true) */
+    singlePage?: boolean
 }
 
 export function usePdfExport() {
@@ -24,8 +25,7 @@ export function usePdfExport() {
         const {
             filename = 'document.pdf',
             margin = 10,
-            pageSize = 'a4',
-            orientation = 'portrait'
+            singlePage = true
         } = options
 
         isExporting.value = true
@@ -39,8 +39,11 @@ export function usePdfExport() {
             clonedElement.style.backgroundColor = '#ffffff'
             clonedElement.style.color = '#000000'
             clonedElement.style.padding = '20px'
-            clonedElement.style.width = '100%'
+            clonedElement.style.width = '900px'  // Fixed width for consistent rendering
             clonedElement.style.maxWidth = 'none'
+            clonedElement.style.position = 'absolute'
+            clonedElement.style.left = '-9999px'
+            clonedElement.style.top = '0'
 
             // Fix SVG rendering issues in Mermaid diagrams
             const svgs = clonedElement.querySelectorAll('svg')
@@ -53,6 +56,7 @@ export function usePdfExport() {
                 svg.style.backgroundColor = '#ffffff'
             })
 
+<<<<<<< Updated upstream
             // Fix table borders for PDF export
             const tableContainers = clonedElement.querySelectorAll('.table-container')
             tableContainers.forEach((container) => {
@@ -98,13 +102,97 @@ export function usePdfExport() {
                     orientation
                 },
                 pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+=======
+            // Append to document for rendering
+            document.body.appendChild(clonedElement)
+
+            // Wait for images and SVG to render
+            await new Promise(resolve => setTimeout(resolve, 200))
+
+            // Capture the element as canvas
+            const canvas = await html2canvas(clonedElement, {
+                scale: 2,
+                useCORS: true,
+                logging: false,
+                backgroundColor: '#ffffff',
+                allowTaint: true
+            })
+
+            // Remove the cloned element
+            document.body.removeChild(clonedElement)
+
+            // Get canvas dimensions
+            const imgWidth = canvas.width
+            const imgHeight = canvas.height
+
+            // Wide page format (280mm width, wider than A4)
+            const PAGE_WIDTH_MM = 280
+            const contentWidthMm = PAGE_WIDTH_MM - margin * 2
+
+            // Calculate PDF dimensions
+            const pxToMm = contentWidthMm / imgWidth
+            const contentHeightMm = imgHeight * pxToMm
+            const pageHeightMm = contentHeightMm + margin * 2
+
+            // Create PDF
+            const pdf = new jsPDF({
+                orientation: 'portrait',
+                unit: 'mm',
+                format: singlePage ? [PAGE_WIDTH_MM, pageHeightMm] : 'a4'
+            })
+
+            // Convert canvas to image data
+            const imgData = canvas.toDataURL('image/jpeg', 0.95)
+
+            if (singlePage) {
+                // Single page mode: add entire image to one page
+                pdf.addImage(imgData, 'JPEG', margin, margin, contentWidthMm, contentHeightMm)
+            } else {
+                // Multi-page mode: split across A4 pages
+                const A4_HEIGHT_MM = 297
+                const pageContentHeight = A4_HEIGHT_MM - margin * 2
+                let remainingHeight = contentHeightMm
+                let yOffset = 0
+                let pageNum = 0
+
+                while (remainingHeight > 0) {
+                    if (pageNum > 0) {
+                        pdf.addPage()
+                    }
+
+                    // Calculate source region from canvas
+                    const sourceY = (yOffset / contentHeightMm) * imgHeight
+                    const sourceHeight = Math.min(
+                        (pageContentHeight / contentHeightMm) * imgHeight,
+                        imgHeight - sourceY
+                    )
+                    const destHeight = Math.min(pageContentHeight, remainingHeight)
+
+                    // Create a temporary canvas for this page section
+                    const pageCanvas = document.createElement('canvas')
+                    pageCanvas.width = imgWidth
+                    pageCanvas.height = sourceHeight
+                    const ctx = pageCanvas.getContext('2d')!
+                    ctx.fillStyle = '#ffffff'
+                    ctx.fillRect(0, 0, pageCanvas.width, pageCanvas.height)
+                    ctx.drawImage(
+                        canvas,
+                        0, sourceY, imgWidth, sourceHeight,
+                        0, 0, imgWidth, sourceHeight
+                    )
+
+                    const pageImgData = pageCanvas.toDataURL('image/jpeg', 0.95)
+                    pdf.addImage(pageImgData, 'JPEG', margin, margin, contentWidthMm, destHeight)
+
+                    yOffset += pageContentHeight
+                    remainingHeight -= pageContentHeight
+                    pageNum++
+                }
+>>>>>>> Stashed changes
             }
 
-            // Generate and download PDF
-            await html2pdf()
-                .set(pdfOptions)
-                .from(clonedElement)
-                .save()
+            // Save the PDF
+            pdf.save(filename)
 
         } catch (error) {
             console.error('PDF export failed:', error)
