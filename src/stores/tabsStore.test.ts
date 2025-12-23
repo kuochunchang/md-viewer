@@ -16,6 +16,7 @@ describe('tabsStore', () => {
     expect(store.tabs.length).toBe(1)
     expect(store.tabs[0].name).toBe('Test Tab')
     expect(store.activeTabId).toBe(tabId)
+    expect(store.openTabIds).toContain(tabId)
   })
 
   it('should be able to switch active tab', () => {
@@ -47,21 +48,30 @@ describe('tabsStore', () => {
     expect(tab?.name).toBe('new name')
   })
 
-  it('should be able to remove a tab', () => {
+  it('should be able to delete a file', () => {
     const store = useTabsStore()
     const tabId1 = store.addTab('Tab 1')
     const tabId2 = store.addTab('Tab 2')
 
-    store.removeTab(tabId1)
+    store.deleteFile(tabId1)
     expect(store.tabs.length).toBe(1)
     expect(store.tabs[0].id).toBe(tabId2)
   })
 
-  it('should automatically create a new tab when the last one is removed', () => {
+  it('should be able to close a tab without deleting the file', () => {
+    const store = useTabsStore()
+    const tabId1 = store.addTab('Tab 1')
+
+    store.closeTab(tabId1)
+    expect(store.tabs.length).toBe(1)
+    expect(store.openTabIds.length).toBe(0)
+  })
+
+  it('should automatically create a new tab when the last file is deleted', () => {
     const store = useTabsStore()
     const tabId = store.addTab('Only Tab')
 
-    store.removeTab(tabId)
+    store.deleteFile(tabId)
     expect(store.tabs.length).toBe(1)
     expect(store.activeTabId).not.toBeNull()
   })
@@ -113,43 +123,43 @@ describe('tabsStore', () => {
     expect(store.activeTabContent).toBe('')
   })
 
-  it('should switch to the next tab when the active tab is removed', () => {
+  it('should switch to the next open tab when the active tab is closed', () => {
     const store = useTabsStore()
     store.addTab('Tab 1')
     const tabId2 = store.addTab('Tab 2')
     const tabId3 = store.addTab('Tab 3')
 
     store.setActiveTab(tabId2)
-    store.removeTab(tabId2)
+    store.closeTab(tabId2)
 
-    // Should switch to the next tab (tabId3)
+    // Should switch to the next open tab (tabId3)
     expect(store.activeTabId).toBe(tabId3)
-    expect(store.tabs.length).toBe(2)
+    expect(store.openTabIds.length).toBe(2)
   })
 
-  it('should switch to the previous tab when the last active tab is removed', () => {
+  it('should switch to the previous open tab when the last active tab is closed', () => {
     const store = useTabsStore()
     const tabId1 = store.addTab('Tab 1')
     const tabId2 = store.addTab('Tab 2')
 
     store.setActiveTab(tabId2)
-    store.removeTab(tabId2)
+    store.closeTab(tabId2)
 
-    // Should switch to the previous tab (tabId1)
+    // Should switch to the previous open tab (tabId1)
     expect(store.activeTabId).toBe(tabId1)
-    expect(store.tabs.length).toBe(1)
+    expect(store.openTabIds.length).toBe(1)
   })
 
-  it('should not change the active tab when a non-active tab is removed', () => {
+  it('should not change the active tab when a non-active tab is closed', () => {
     const store = useTabsStore()
     const tabId1 = store.addTab('Tab 1')
     const tabId2 = store.addTab('Tab 2')
 
     store.setActiveTab(tabId1)
-    store.removeTab(tabId2)
+    store.closeTab(tabId2)
 
     expect(store.activeTabId).toBe(tabId1)
-    expect(store.tabs.length).toBe(1)
+    expect(store.openTabIds.length).toBe(1)
   })
 
   it('setActiveTab should not change the active tab when switching to a non-existent tab', () => {
@@ -225,6 +235,7 @@ describe('tabsStore', () => {
         createdAt: tab.createdAt
       })),
       activeTabId: 'non-existent tab',
+      openTabIds: store.tabs.map(t => t.id),
       fontSize: 14
     }
     localStorage.setItem('markdown-mermaid-editor-data', JSON.stringify(data))
@@ -248,6 +259,7 @@ describe('tabsStore', () => {
         }
       ],
       activeTabId: 'tab-1',
+      openTabIds: ['tab-1'],
       fontSize: 5 // less than 10
     }
     localStorage.setItem('markdown-mermaid-editor-data', JSON.stringify(data))
@@ -318,11 +330,11 @@ describe('tabsStore', () => {
     expect(store.tabs[1].name).toBe('New Document 2')
   })
 
-  it('removeTab should not throw error when removing a non-existent tab', () => {
+  it('deleteFile should not throw error when removing a non-existent tab', () => {
     const store = useTabsStore()
     store.addTab('Tab 1')
 
-    expect(() => store.removeTab('non-existent tab')).not.toThrow()
+    expect(() => store.deleteFile('non-existent tab')).not.toThrow()
     expect(store.tabs.length).toBe(1)
   })
 })

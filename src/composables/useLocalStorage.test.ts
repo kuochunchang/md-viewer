@@ -26,7 +26,10 @@ describe('useLocalStorage', () => {
           }
         ],
         activeTabId: 'tab-1',
-        fontSize: 14
+        openTabIds: ['tab-1'],
+        fontSize: 14,
+        showSidebar: true,
+        showEditor: true
       }
 
       saveToLocalStorage(data)
@@ -57,6 +60,7 @@ describe('useLocalStorage', () => {
           }
         ],
         activeTabId: 'tab-2',
+        openTabIds: ['tab-1', 'tab-2'],
         fontSize: 16
       }
 
@@ -79,6 +83,7 @@ describe('useLocalStorage', () => {
       const data: StoredTabsData = {
         tabs: [],
         activeTabId: null,
+        openTabIds: [],
         fontSize: 14
       }
 
@@ -109,6 +114,7 @@ describe('useLocalStorage', () => {
       const data: StoredTabsData = {
         tabs: [],
         activeTabId: null,
+        openTabIds: [],
         fontSize: 14
       }
 
@@ -137,6 +143,7 @@ describe('useLocalStorage', () => {
           }
         ],
         activeTabId: 'tab-1',
+        openTabIds: ['tab-1'],
         fontSize: 14
       }
 
@@ -180,6 +187,7 @@ describe('useLocalStorage', () => {
       localStorage.setItem('markdown-mermaid-editor-data', JSON.stringify({
         tabs: 'not an array',
         activeTabId: null,
+        openTabIds: [],
         fontSize: 14
       }))
 
@@ -191,6 +199,7 @@ describe('useLocalStorage', () => {
       localStorage.setItem('markdown-mermaid-editor-data', JSON.stringify({
         tabs: [],
         activeTabId: null,
+        openTabIds: [],
         fontSize: 'not a number'
       }))
 
@@ -218,6 +227,7 @@ describe('useLocalStorage', () => {
       const data: StoredTabsData = {
         tabs: [],
         activeTabId: null,
+        openTabIds: [],
         fontSize: 14
       }
 
@@ -241,6 +251,7 @@ describe('useLocalStorage', () => {
           }
         ],
         activeTabId: 'tab-1',
+        openTabIds: ['tab-1'],
         fontSize: 14
       }
 
