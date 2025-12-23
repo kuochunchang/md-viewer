@@ -1,6 +1,26 @@
 <template>
   <v-app>
+    <v-navigation-drawer
+      v-model="showSidebar"
+      width="250"
+      border
+      class="sidebar-drawer"
+    >
+      <FileList />
+    </v-navigation-drawer>
+
     <v-app-bar class="app-bar" :class="{ 'is-dark': isDark }" flat>
+      <v-btn
+        icon
+        variant="text"
+        size="small"
+        class="sidebar-toggle-btn ml-2 mr-2"
+        title="Toggle File List"
+        @click="tabsStore.toggleSidebar"
+      >
+        <v-icon>mdi-menu</v-icon>
+      </v-btn>
+
       <v-btn
         icon
         variant="text"
@@ -44,6 +64,7 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
 import { useTheme } from 'vuetify'
+import FileList from './components/FileList.vue'
 import MarkdownEditor from './components/MarkdownEditor.vue'
 import MarkdownPreview from './components/MarkdownPreview.vue'
 import SettingsMenu from './components/SettingsMenu.vue'
@@ -58,6 +79,14 @@ const isDark = computed(() => theme.global.name.value === 'dark')
 const activeTabContent = computed(() => tabsStore.activeTabContent)
 const fontSize = computed(() => tabsStore.fontSize)
 const showEditor = computed(() => tabsStore.showEditor)
+const showSidebar = computed({
+  get: () => tabsStore.showSidebar,
+  set: (val) => {
+    if (val !== tabsStore.showSidebar) {
+      tabsStore.toggleSidebar()
+    }
+  }
+})
 
 function handleContentUpdate(content: string) {
   if (tabsStore.activeTabId) {
@@ -82,6 +111,9 @@ onMounted(() => {
   height: 100vh;
 }
 
+.sidebar-drawer {
+  border-right: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+}
 
 // Global styles: Optimize app-bar display on mobile
 :deep(.app-bar) {
@@ -105,8 +137,8 @@ onMounted(() => {
     }
   }
 
+  .sidebar-toggle-btn,
   .layout-toggle-btn {
-    margin-left: 8px;
     color: rgba(var(--v-theme-on-surface), 0.7);
 
     &:hover {

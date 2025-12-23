@@ -2,7 +2,7 @@
   <div class="tab-bar" :class="{ 'is-dark': isDark }">
     <div class="tabs-container">
       <TabItem
-        v-for="tab in tabs"
+        v-for="tab in openTabs"
         :key="tab.id"
         :tab="tab"
         :is-active="tab.id === activeTabId"
@@ -20,40 +20,22 @@
         <v-icon>mdi-plus</v-icon>
       </v-btn>
     </div>
-    <ConfirmDialog
-      v-model="showConfirmDialog"
-      title="Confirm Delete"
-      :message="confirmMessage"
-      @confirm="confirmDelete"
-      @cancel="cancelDelete"
-    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 import { useTheme } from 'vuetify'
 import { useTabsStore } from '../stores/tabsStore'
-import ConfirmDialog from './ConfirmDialog.vue'
 import TabItem from './TabItem.vue'
 
 const tabsStore = useTabsStore()
 const theme = useTheme()
 
-const isDark = computed(() => theme.global.current.value.dark)
+const isDark = computed(() => theme.global.name.value === 'dark')
 
-const tabs = computed(() => tabsStore.tabs)
+const openTabs = computed(() => tabsStore.openTabs)
 const activeTabId = computed(() => tabsStore.activeTabId)
-
-const showConfirmDialog = ref(false)
-const pendingDeleteId = ref<string | null>(null)
-const confirmMessage = computed(() => {
-  if (pendingDeleteId.value) {
-    const tab = tabs.value.find(t => t.id === pendingDeleteId.value)
-    return `Are you sure you want to delete "${tab?.name || 'this tab'}"?`
-  }
-  return 'Are you sure you want to delete this tab?'
-})
 
 function handleAddTab() {
   tabsStore.addTab()
@@ -64,23 +46,7 @@ function handleSelect(id: string) {
 }
 
 function handleClose(id: string) {
-  // Don't allow deletion if only one tab exists
-  if (tabs.value.length <= 1) {
-    return
-  }
-  pendingDeleteId.value = id
-  showConfirmDialog.value = true
-}
-
-function confirmDelete() {
-  if (pendingDeleteId.value) {
-    tabsStore.removeTab(pendingDeleteId.value)
-    pendingDeleteId.value = null
-  }
-}
-
-function cancelDelete() {
-  pendingDeleteId.value = null
+  tabsStore.closeTab(id)
 }
 
 function handleRename(id: string, name: string) {

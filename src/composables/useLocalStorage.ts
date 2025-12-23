@@ -11,7 +11,9 @@ export interface StoredTabsData {
     createdAt: number
   }>
   activeTabId: string | null
+  openTabIds: string[]
   fontSize: number
+  showSidebar?: boolean
   showEditor?: boolean
 }
 

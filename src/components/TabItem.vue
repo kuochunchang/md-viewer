@@ -47,7 +47,7 @@ const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 const theme = useTheme()
 
-const isDark = computed(() => theme.global.current.value.dark)
+const isDark = computed(() => theme.global.name.value === 'dark')
 
 const isEditing = ref(false)
 const editingName = ref('')
