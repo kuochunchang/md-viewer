@@ -14,6 +14,52 @@ export function usePdfExport() {
     const exportError = ref<string | null>(null)
 
     /**
+     * Apply print-friendly styles to an element for PDF export
+     */
+    function applyPrintStyles(element: HTMLElement): void {
+        // Apply base styles
+        element.style.backgroundColor = '#ffffff'
+        element.style.color = '#000000'
+        element.style.padding = '20px'
+        element.style.width = '800px'
+        element.style.maxWidth = 'none'
+        element.style.overflow = 'visible'
+        element.style.overflowX = 'visible'
+        element.style.overflowY = 'visible'
+
+        // Fix SVG rendering issues in Mermaid diagrams
+        const svgs = element.querySelectorAll('svg')
+        svgs.forEach((svg) => {
+            if (!svg.getAttribute('width')) {
+                svg.setAttribute('width', '100%')
+            }
+            svg.style.backgroundColor = '#ffffff'
+        })
+
+        // Fix table border rendering for PDF export
+        const tables = element.querySelectorAll('table')
+        tables.forEach((table) => {
+            table.style.borderCollapse = 'collapse'
+            table.style.border = '0.5px solid #999999'
+            table.style.width = '100%'
+        })
+
+        const tableCells = element.querySelectorAll('th, td')
+        tableCells.forEach((cell) => {
+            const cellElement = cell as HTMLElement
+            cellElement.style.border = '0.5px solid #999999'
+            cellElement.style.padding = '8px 12px'
+        })
+
+        const tableHeaders = element.querySelectorAll('th')
+        tableHeaders.forEach((th) => {
+            const thElement = th as HTMLElement
+            thElement.style.backgroundColor = '#f5f5f5'
+            thElement.style.fontWeight = '600'
+        })
+    }
+
+    /**
      * Generate PDF from HTML element
      * @param element - The HTML element to convert to PDF
      * @param options - PDF export options
@@ -32,70 +78,20 @@ export function usePdfExport() {
         exportError.value = null
 
         try {
-            // Clone the element to avoid modifying the original
-            const clonedElement = element.cloneNode(true) as HTMLElement
-
-            // Apply print-friendly styles to the clone
-            clonedElement.style.backgroundColor = '#ffffff'
-            clonedElement.style.color = '#000000'
-            clonedElement.style.padding = '20px'
-            clonedElement.style.width = '900px'  // Fixed width for consistent rendering
-            clonedElement.style.maxWidth = 'none'
-            clonedElement.style.position = 'absolute'
-            clonedElement.style.left = '-9999px'
-            clonedElement.style.top = '0'
-
-            // Fix SVG rendering issues in Mermaid diagrams
-            const svgs = clonedElement.querySelectorAll('svg')
-            svgs.forEach((svg) => {
-                // Ensure SVG has explicit dimensions
-                if (!svg.getAttribute('width')) {
-                    svg.setAttribute('width', '100%')
-                }
-                // Add white background to SVG diagrams
-                svg.style.backgroundColor = '#ffffff'
-            })
-
-            // Fix table border rendering for PDF export
-            // html2canvas has limited support for CSS variables, so we apply inline styles
-            const tables = clonedElement.querySelectorAll('table')
-            tables.forEach((table) => {
-                table.style.borderCollapse = 'collapse'
-                table.style.border = '0.5px solid #999999'
-                table.style.width = '100%'
-            })
-
-            const tableCells = clonedElement.querySelectorAll('th, td')
-            tableCells.forEach((cell) => {
-                const cellElement = cell as HTMLElement
-                cellElement.style.border = '0.5px solid #999999'
-                cellElement.style.padding = '8px 12px'
-            })
-
-            const tableHeaders = clonedElement.querySelectorAll('th')
-            tableHeaders.forEach((th) => {
-                const thElement = th as HTMLElement
-                thElement.style.backgroundColor = '#f5f5f5'
-                thElement.style.fontWeight = '600'
-            })
-
-            // Append to document for rendering
-            document.body.appendChild(clonedElement)
-
-            // Wait for images and SVG to render
-            await new Promise(resolve => setTimeout(resolve, 200))
-
-            // Capture the element as canvas
-            const canvas = await html2canvas(clonedElement, {
+            // Use html2canvas with onclone callback to modify styles
+            const canvas = await html2canvas(element, {
                 scale: 2,
                 useCORS: true,
                 logging: false,
                 backgroundColor: '#ffffff',
-                allowTaint: true
+                allowTaint: true,
+                scrollX: 0,
+                scrollY: 0,
+                windowWidth: 1200,
+                onclone: (_clonedDoc, clonedElement) => {
+                    applyPrintStyles(clonedElement)
+                }
             })
-
-            // Remove the cloned element
-            document.body.removeChild(clonedElement)
 
             // Get canvas dimensions
             const imgWidth = canvas.width

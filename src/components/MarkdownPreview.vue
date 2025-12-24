@@ -83,11 +83,11 @@ onMounted(async () => {
 <style scoped lang="scss">
 @import '../styles/preview.scss';
 
-.markdown-preview {
+  .markdown-preview {
   width: 100%;
   height: 100%;
   overflow-y: auto;
-  overflow-x: hidden;
+  overflow-x: auto; // 改為 auto 允許水平滾動
   padding: 16px;
   background-color: rgb(var(--v-theme-surface));
   color: rgb(var(--v-theme-on-surface));
@@ -98,10 +98,12 @@ onMounted(async () => {
   }
 
   .preview-content {
+    width: 100%;
     max-width: 100%;
     line-height: 1.8;
     word-wrap: break-word;
     overflow-wrap: break-word;
+    overflow: visible; // 確保內容不會在此處被截斷
 
     // Heading styles
     :deep(h1),
