@@ -56,6 +56,29 @@ export function usePdfExport() {
                 svg.style.backgroundColor = '#ffffff'
             })
 
+            // Fix table border rendering for PDF export
+            // html2canvas has limited support for CSS variables, so we apply inline styles
+            const tables = clonedElement.querySelectorAll('table')
+            tables.forEach((table) => {
+                table.style.borderCollapse = 'collapse'
+                table.style.border = '0.5px solid #999999'
+                table.style.width = '100%'
+            })
+
+            const tableCells = clonedElement.querySelectorAll('th, td')
+            tableCells.forEach((cell) => {
+                const cellElement = cell as HTMLElement
+                cellElement.style.border = '0.5px solid #999999'
+                cellElement.style.padding = '8px 12px'
+            })
+
+            const tableHeaders = clonedElement.querySelectorAll('th')
+            tableHeaders.forEach((th) => {
+                const thElement = th as HTMLElement
+                thElement.style.backgroundColor = '#f5f5f5'
+                thElement.style.fontWeight = '600'
+            })
+
             // Append to document for rendering
             document.body.appendChild(clonedElement)
 
