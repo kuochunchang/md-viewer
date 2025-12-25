@@ -132,7 +132,8 @@
                     Key Features
                 </h3>
                 <ul class="help-list">
-                    <li><strong>Multi-tab Support</strong>: Create multiple tabs to manage different documents</li>
+                    <li><strong>Multi-tab Support</strong>: Create tabs, drag to reorder, and manage documents</li>
+                    <li><strong>Batch Copy</strong>: Copy markdown content from all open tabs at once</li>
                     <li><strong>Mermaid Diagrams</strong>: Supports flowcharts, sequence diagrams, Gantt charts, etc.</li>
                     <li><strong>PDF Export</strong>: Download your preview as a PDF with one click</li>
                     <li><strong>Dark/Light Theme</strong>: Toggle between display themes</li>

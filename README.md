@@ -6,7 +6,8 @@ A simple web application for real-time Markdown preview with Mermaid diagram sup
 
 - **Real-time Preview** - Edit Markdown on the left, see rendered output on the right instantly
 - **Mermaid Diagrams** - Full support for flowcharts, sequence diagrams, Gantt charts, and more
-- **Multi-tab Support** - Create and manage multiple documents with tabs
+- **Multi-tab Interface** - Create multiple documents, drag to reorder, and manage easily
+- **Batch Copy** - Copy markdown content from all open tabs to clipboard
 - **PDF Export** - Download your rendered content as PDF with one click
 - **Dark/Light Theme** - Toggle between display themes
 - **Adjustable Font Size** - Customize font size (10-24px)
@@ -41,8 +42,8 @@ npm run build
 ## 📖 Usage
 
 1. **Edit Markdown** - Type or paste Markdown in the left editor panel
-2. **Add Tabs** - Click the `+` button to create new documents
-3. **Rename Tabs** - Double-click a tab name to edit it
+2. **Manage Tabs** - Click `+` for new docs, drag tabs to reorder, double-click to rename
+3. **Copy All** - Click the copy icon to copy all tabs content at once
 4. **Adjust Layout** - Drag the divider to resize panels
 5. **Export PDF** - Click the PDF icon to download
 6. **Toggle Theme** - Click the sun/moon icon to switch themes
