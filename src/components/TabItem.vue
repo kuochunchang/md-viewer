@@ -161,14 +161,18 @@ function handleClose() {
     z-index: 1;
     font-weight: 600;
     // Use inset shadow for a perfect curve-hugging accent
-    box-shadow: inset 0 3px 0 0 var(--primary-color), 0 -1px 2px rgba(0,0,0,0.03);
+    box-shadow: 3px -1px 4px rgba(0,0,0,0.15);
+
+    // Dark mode specific enhancement for better separation
+    .v-theme--dark & {
+      box-shadow: 3px -1px 6px rgba(0,0,0,0.6), inset 1px 1px 0 0 rgba(255, 255, 255, 0.08);
+      background: #1e293b; // Slightly lighter than base (Slate-800) to pop against #020617 header
+    }
 
     // Hide separator for active
     &::after {
       display: none;
     }
-    
-    // Remove the pseudo-element solution
   }
 }
 
