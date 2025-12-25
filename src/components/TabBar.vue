@@ -2,10 +2,15 @@
   <div class="tab-bar">
     <div class="tabs-container">
       <TabItem
-        v-for="tab in openTabs"
+        v-for="(tab, index) in openTabs"
         :key="tab.id"
         :tab="tab"
         :is-active="tab.id === activeTabId"
+        draggable="true"
+        @dragstart="handleDragStart($event, index)"
+        @dragover.prevent
+        @drop="handleDrop($event, index)"
+        @dragend="handleDragEnd"
         @select="handleSelect"
         @close="handleClose"
         @rename="handleRename"
@@ -19,6 +24,16 @@
         title="New Tab"
       >
         <v-icon size="18">mdi-plus</v-icon>
+      </v-btn>
+      <v-btn
+        icon
+        variant="text"
+        size="small"
+        class="action-btn"
+        @click="handleCopyAll"
+        title="Copy All Tabs"
+      >
+        <v-icon size="18">mdi-content-copy</v-icon>
       </v-btn>
     </div>
   </div>
@@ -38,6 +53,19 @@ function handleAddTab() {
   tabsStore.addTab()
 }
 
+async function handleCopyAll() {
+  const content = openTabs.value
+    .map(tab => `# ${tab.name}\n\n${tab.content}`)
+    .join('\n\n---\n\n')
+  
+  try {
+    await navigator.clipboard.writeText(content)
+    // Could add visual feedback here if we had a toast system
+  } catch (err) {
+    console.error('Failed to copy:', err)
+  }
+}
+
 function handleSelect(id: string) {
   tabsStore.setActiveTab(id)
 }
@@ -48,6 +76,31 @@ function handleClose(id: string) {
 
 function handleRename(id: string, name: string) {
   tabsStore.renameTab(id, name)
+}
+
+function handleDragStart(event: DragEvent, index: number) {
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = 'move'
+    event.dataTransfer.setData('text/plain', index.toString())
+    if (event.target instanceof HTMLElement) {
+      event.target.style.opacity = '0.5'
+    }
+  }
+}
+
+function handleDragEnd(event: DragEvent) {
+  if (event.target instanceof HTMLElement) {
+    event.target.style.opacity = ''
+  }
+}
+
+function handleDrop(event: DragEvent, toIndex: number) {
+  if (event.dataTransfer) {
+    const fromIndex = parseInt(event.dataTransfer.getData('text/plain'))
+    if (!isNaN(fromIndex) && fromIndex !== toIndex) {
+      tabsStore.reorderTabs(fromIndex, toIndex)
+    }
+  }
 }
 </script>
 
@@ -81,7 +134,8 @@ function handleRename(id: string, name: string) {
   }
 }
 
-.add-tab-btn {
+.add-tab-btn,
+.action-btn {
   flex-shrink: 0;
   margin-bottom: 6px; // Align vertically with tabs
   margin-left: 4px;

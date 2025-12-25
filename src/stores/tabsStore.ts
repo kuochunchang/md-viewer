@@ -226,6 +226,11 @@ export const useTabsStore = defineStore('tabs', () => {
     toggleSidebar,
     initialize,
     saveToStore,
-    loadFromStore
+    loadFromStore,
+    reorderTabs: (fromIndex: number, toIndex: number) => {
+      const item = openTabIds.value.splice(fromIndex, 1)[0]
+      openTabIds.value.splice(toIndex, 0, item)
+      saveToStore()
+    }
   }
 })
