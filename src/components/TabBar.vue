@@ -1,5 +1,5 @@
 <template>
-  <div class="tab-bar" :class="{ 'is-dark': isDark }">
+  <div class="tab-bar">
     <div class="tabs-container">
       <TabItem
         v-for="tab in openTabs"
@@ -16,8 +16,9 @@
         size="small"
         class="add-tab-btn"
         @click="handleAddTab"
+        title="New Tab"
       >
-        <v-icon>mdi-plus</v-icon>
+        <v-icon size="18">mdi-plus</v-icon>
       </v-btn>
     </div>
   </div>
@@ -25,14 +26,10 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useTheme } from 'vuetify'
 import { useTabsStore } from '../stores/tabsStore'
 import TabItem from './TabItem.vue'
 
 const tabsStore = useTabsStore()
-const theme = useTheme()
-
-const isDark = computed(() => theme.global.name.value === 'dark')
 
 const openTabs = computed(() => tabsStore.openTabs)
 const activeTabId = computed(() => tabsStore.activeTabId)
@@ -55,47 +52,29 @@ function handleRename(id: string, name: string) {
 </script>
 
 <style scoped lang="scss">
+@import '../styles/variables.scss';
+
 .tab-bar {
   display: flex;
   align-items: flex-end;
-  gap: 8px;
-  padding: 8px 8px 0;
-  background-color: transparent;
-  border-bottom: none;
-  overflow-x: auto;
-  overflow-y: hidden;
+  height: 100%;
   flex: 1;
   min-width: 0;
-  height: 100%;
-
-  // RWD
-  @media (max-width: 600px) {
-    gap: 4px;
-    padding: 4px 8px 0;
-  }
-
-  // Dark theme compatibility
-  &.is-dark {
-    .add-tab-btn {
-      color: #969696;
-      &:hover {
-        background-color: rgba(255, 255, 255, 0.08);
-        color: #E0E0E0;
-      }
-    }
-  }
+  padding-top: 8px; // Align tabs with bottom of header
+  overflow: hidden;
 }
 
 .tabs-container {
   display: flex;
   align-items: flex-end;
-  gap: 4px;
+  gap: 2px;
   flex: 1;
   overflow-x: auto;
   overflow-y: hidden;
   height: 100%;
-  padding-bottom: 0;
-
+  padding: 0 4px;
+  
+  // Hide scrollbar but allow scrolling
   scrollbar-width: none;
   &::-webkit-scrollbar {
     display: none;
@@ -104,12 +83,16 @@ function handleRename(id: string, name: string) {
 
 .add-tab-btn {
   flex-shrink: 0;
-  margin-bottom: 4px;
-  color: #616161;
+  margin-bottom: 6px; // Align vertically with tabs
+  margin-left: 4px;
+  color: var(--text-tertiary);
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
 
   &:hover {
-    background-color: rgba(0, 0, 0, 0.08);
-    color: #333333;
+    background-color: var(--bg-surface-hover);
+    color: var(--text-primary);
   }
 }
 </style>

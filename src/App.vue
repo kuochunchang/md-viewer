@@ -1,43 +1,55 @@
 <template>
-  <v-app>
+  <v-app class="app-wrapper">
     <v-navigation-drawer
       v-model="showSidebar"
-      width="250"
-      border
+      width="280"
       class="sidebar-drawer"
+      floating
     >
       <FileList />
     </v-navigation-drawer>
 
-    <v-app-bar class="app-bar" :class="{ 'is-dark': isDark }" flat>
-      <v-btn
-        icon
-        variant="text"
-        size="small"
-        class="sidebar-toggle-btn ml-2 mr-2"
-        title="Toggle File List"
-        @click="tabsStore.toggleSidebar"
-      >
-        <v-icon>mdi-menu</v-icon>
-      </v-btn>
+    <v-app-bar class="app-header" flat height="48">
+      <div class="d-flex align-center h-100 flex-grow-1 pl-2">
+        <v-btn
+          icon
+          variant="text"
+          size="small"
+          class="nav-btn mr-2"
+          :title="showSidebar ? 'Hide Sidebar' : 'Show Sidebar'"
+          @click="tabsStore.toggleSidebar"
+        >
+          <v-icon size="20">mdi-menu</v-icon>
+        </v-btn>
 
-      <v-btn
-        icon
-        variant="text"
-        size="small"
-        class="layout-toggle-btn mr-2"
-        :title="showEditor ? 'Hide Editor (Full Preview)' : 'Show Editor (Split View)'"
-        @click="tabsStore.toggleEditor"
-      >
-        <v-icon>{{ showEditor ? 'mdi-backburger' : 'mdi-forwardburger' }}</v-icon>
-      </v-btn>
-      <TabBar />
-      <SettingsMenu />
+        <TabBar />
+        
+        <v-spacer></v-spacer>
+
+        <!-- Editor Toggle / Right Actions -->
+        <div class="d-flex align-center pr-2 gap-2">
+           <v-btn
+            icon
+            variant="text"
+            size="small"
+            class="nav-btn"
+            :title="showEditor ? 'Preview Mode' : 'Split Mode'"
+            @click="tabsStore.toggleEditor"
+          >
+            <v-icon size="20">{{ showEditor ? 'mdi-book-open-outline' : 'mdi-book-open-variant' }}</v-icon>
+          </v-btn>
+          
+          <v-divider vertical class="mx-2 my-auto" style="height: 20px" inset></v-divider>
+          
+          <SettingsMenu />
+        </div>
+      </div>
     </v-app-bar>
+
     <v-main>
       <div class="app-container">
         <SplitPane
-          :initial-ratio="0.35"
+          :initial-ratio="0.4"
           :min-ratio="0.1"
           :max-ratio="0.9"
           :collapsed="!showEditor"
@@ -63,7 +75,6 @@
 
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
-import { useTheme } from 'vuetify'
 import FileList from './components/FileList.vue'
 import MarkdownEditor from './components/MarkdownEditor.vue'
 import MarkdownPreview from './components/MarkdownPreview.vue'
@@ -73,9 +84,7 @@ import TabBar from './components/TabBar.vue'
 import { useTabsStore } from './stores/tabsStore'
 
 const tabsStore = useTabsStore()
-const theme = useTheme()
 
-const isDark = computed(() => theme.global.name.value === 'dark')
 const activeTabContent = computed(() => tabsStore.activeTabContent)
 const fontSize = computed(() => tabsStore.fontSize)
 const showEditor = computed(() => tabsStore.showEditor)
@@ -94,56 +103,60 @@ function handleContentUpdate(content: string) {
   }
 }
 
-// Initialization: ensure at least one tab exists
+// Initialization
 onMounted(() => {
   tabsStore.initialize()
 })
 </script>
 
 <style scoped lang="scss">
+// CSS Variables are defined in main.scss -> variables.scss globally
+// No need to import variables.scss here unless using SCSS vars
+
+.app-wrapper {
+  background: var(--bg-app);
+}
+
 .app-container {
   width: 100%;
   height: 100%;
-  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
-:deep(.v-main) {
-  height: 100vh;
-}
-
-.sidebar-drawer {
-  border-right: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
-}
-
-// Global styles: Optimize app-bar display on mobile
-:deep(.app-bar) {
-  background-color: #ECECEC !important;
-  border-bottom: 1px solid #E1E1E1 !important;
-
-  &.is-dark {
-    background-color: #252526 !important;
-    border-bottom: 1px solid #2D2D2D !important;
+// Sidebar Customization
+:deep(.sidebar-drawer) {
+  background-color: var(--bg-sidebar) !important;
+  border-right: 1px solid var(--border-color);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  
+  .v-navigation-drawer__content {
+    &::-webkit-scrollbar {
+      width: 4px;
+    }
   }
+}
 
+// Header Customization
+:deep(.app-header) {
+  background-color: var(--bg-header) !important;
+  border-bottom: 1px solid var(--border-color) !important;
+  backdrop-filter: blur(10px);
+  z-index: 10;
+  
   .v-toolbar__content {
     padding: 0;
-    overflow: hidden;
+    overflow: visible;
   }
+}
 
-  // RWD: Mobile layout adjustment
-  @media (max-width: 600px) {
-    .v-toolbar__content {
-      padding: 0 4px;
-    }
-  }
-
-  .sidebar-toggle-btn,
-  .layout-toggle-btn {
-    color: rgba(var(--v-theme-on-surface), 0.7);
-
-    &:hover {
-      color: var(--v-theme-primary);
-    }
+.nav-btn {
+  color: var(--text-secondary);
+  border-radius: var(--radius-sm);
+  
+  &:hover {
+    color: var(--text-primary);
+    background-color: var(--bg-surface-hover);
   }
 }
 </style>

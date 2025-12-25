@@ -1,94 +1,88 @@
 <template>
   <div class="settings-menu">
     <!-- PDF Export Button -->
-    <v-btn
-      icon
-      variant="text"
-      size="small"
-      class="pdf-export-btn"
-      title="Download as PDF"
-      :loading="isExporting"
-      :disabled="isExporting"
-      @click="handlePdfExport"
-    >
-      <v-icon>mdi-file-pdf-box</v-icon>
-    </v-btn>
+    <v-tooltip location="bottom" text="Download as PDF">
+      <template #activator="{ props }">
+        <v-btn
+          icon
+          variant="text"
+          size="small"
+          class="settings-btn"
+          v-bind="props"
+          :loading="isExporting"
+          :disabled="isExporting"
+          @click="handlePdfExport"
+        >
+          <v-icon>mdi-file-pdf-box</v-icon>
+        </v-btn>
+      </template>
+    </v-tooltip>
 
     <!-- Theme Toggle Button -->
-    <v-btn
-      icon
-      variant="text"
-      size="small"
-      class="theme-toggle-btn"
-      :title="isDark ? 'Switch to light theme' : 'Switch to dark theme'"
-      @click="toggleTheme"
-    >
-      <v-icon>{{ isDark ? 'mdi-weather-sunny' : 'mdi-weather-night' }}</v-icon>
-    </v-btn>
+    <v-tooltip location="bottom" :text="isDark ? 'Switch to light theme' : 'Switch to dark theme'">
+      <template #activator="{ props }">
+        <v-btn
+          icon
+          variant="text"
+          size="small"
+          class="settings-btn"
+          v-bind="props"
+          @click="toggleTheme"
+        >
+          <v-icon>{{ isDark ? 'mdi-weather-sunny' : 'mdi-weather-night' }}</v-icon>
+        </v-btn>
+      </template>
+    </v-tooltip>
 
     <!-- Font Size Adjustment Menu -->
-    <v-menu location="bottom end" :close-on-content-click="false">
+    <v-menu location="bottom end" :close-on-content-click="false" transition="scale-transition">
       <template #activator="{ props: menuProps }">
         <v-btn
           icon
           variant="text"
           size="small"
-          class="font-size-btn"
+          class="settings-btn"
           title="Adjust font size"
           v-bind="menuProps"
         >
           <v-icon>mdi-format-size</v-icon>
         </v-btn>
       </template>
-      <v-card min-width="280" class="font-size-menu">
-        <v-card-title class="text-subtitle-1 pa-4 pb-2">
-          Font Size
+      <v-card min-width="280" class="popup-card">
+        <v-card-title class="popup-title">
+          <span>Font Size</span>
         </v-card-title>
-        <v-card-text class="pt-2">
+        <v-card-text class="popup-content">
           <div class="font-size-controls">
-            <!-- Font Size Display -->
-            <div class="font-size-display mb-4">
-              <span class="text-body-2">Current size: {{ fontSize }}px</span>
+            <!-- Slider Control -->
+            <div class="d-flex align-center gap-4 mb-4">
+               <v-slider
+                v-model="localFontSize"
+                :min="10"
+                :max="24"
+                :step="1"
+                color="primary"
+                track-color="grey-lighten-2"
+                hide-details
+                density="compact"
+                thumb-size="16"
+                @update:model-value="handleFontSizeChange"
+              ></v-slider>
+              <span class="font-weight-bold ml-2">{{ localFontSize }}px</span>
             </div>
 
-            <!-- Slider Control -->
-            <v-slider
-              v-model="localFontSize"
-              :min="10"
-              :max="24"
-              :step="1"
-              color="primary"
-              track-color="grey-lighten-2"
-              hide-details
-              @update:model-value="handleFontSizeChange"
-            >
-              <template #append>
-                <v-text-field
-                  v-model.number="localFontSize"
-                  type="number"
-                  variant="outlined"
-                  density="compact"
-                  style="width: 70px"
-                  :min="10"
-                  :max="24"
-                  hide-details
-                  @update:model-value="handleFontSizeChange"
-                ></v-text-field>
-              </template>
-            </v-slider>
-
             <!-- Quick Preset Buttons -->
-            <div class="font-size-presets mt-4">
+            <div class="font-size-presets">
               <v-btn
                 v-for="preset in fontSizePresets"
                 :key="preset"
-                size="small"
-                variant="outlined"
+                size="x-small"
+                :variant="localFontSize === preset ? 'flat' : 'outlined'"
                 :color="localFontSize === preset ? 'primary' : undefined"
                 class="preset-btn"
                 @click="setFontSize(preset)"
               >
-                {{ preset }}px
+                {{ preset }}
               </v-btn>
             </div>
           </div>
@@ -97,77 +91,83 @@
     </v-menu>
 
     <!-- Help Button -->
-    <v-btn
-      icon
-      variant="text"
-      size="small"
-      class="help-btn"
-      title="Help"
-      @click="showHelpDialog = true"
-    >
-      <v-icon>mdi-help-circle-outline</v-icon>
-    </v-btn>
+    <v-tooltip location="bottom" text="Help">
+      <template #activator="{ props }">
+        <v-btn
+          icon
+          variant="text"
+          size="small"
+          class="settings-btn mr-1"
+          v-bind="props"
+          @click="showHelpDialog = true"
+        >
+          <v-icon>mdi-help-circle-outline</v-icon>
+        </v-btn>
+      </template>
+    </v-tooltip>
 
     <!-- Help Dialog -->
-    <v-dialog v-model="showHelpDialog" max-width="650">
-      <v-card class="help-dialog">
-        <v-card-title class="d-flex align-center justify-space-between py-3">
-          <span class="text-subtitle-1 font-weight-medium">📖 Help</span>
-          <v-btn icon variant="text" size="x-small" @click="showHelpDialog = false">
-            <v-icon size="small">mdi-close</v-icon>
+    <v-dialog v-model="showHelpDialog" max-width="650" transition="dialog-bottom-transition">
+      <v-card class="popup-card rounded-lg">
+        <v-card-title class="popup-title d-flex align-center justify-space-between">
+          <span class="text-h6 font-weight-bold">Help & Documentation</span>
+          <v-btn icon variant="text" size="small" @click="showHelpDialog = false">
+            <v-icon>mdi-close</v-icon>
           </v-btn>
         </v-card-title>
         
-        <v-card-text class="pt-0">
+        <v-card-text class="popup-content py-4">
           <div class="help-content">
-            <h3 class="text-subtitle-2 font-weight-bold mb-1">🎯 About This App</h3>
-            <p class="mb-3 text-body-2">
-              A real-time Markdown and Mermaid diagram preview tool. Edit Markdown on the left, and see the rendered result on the right instantly.
-            </p>
+            <div class="help-section mb-6">
+                <h3 class="flex align-center gap-2 text-primary font-weight-bold mb-2">
+                    <v-icon size="small" color="primary">mdi-information-outline</v-icon>
+                    About This App
+                </h3>
+                <p>A real-time Markdown and Mermaid diagram preview tool. Edit Markdown on the left, and see the rendered result on the right instantly.</p>
+            </div>
 
-            <h3 class="text-subtitle-2 font-weight-bold mb-1">✨ Key Features</h3>
-            <ul class="help-list mb-3">
-              <li><strong>Multi-tab Support</strong>: Create multiple tabs to manage different documents</li>
-              <li><strong>Mermaid Diagrams</strong>: Supports flowcharts, sequence diagrams, Gantt charts, etc.</li>
-              <li><strong>PDF Export</strong>: Download your preview as a PDF with one click</li>
-              <li><strong>Dark/Light Theme</strong>: Toggle between display themes</li>
-              <li><strong>Font Size Adjustment</strong>: Adjust font size from 10-24px</li>
-            </ul>
+            <div class="help-section mb-6">
+                <h3 class="flex align-center gap-2 text-primary font-weight-bold mb-2">
+                    <v-icon size="small" color="primary">mdi-star-outline</v-icon>
+                    Key Features
+                </h3>
+                <ul class="help-list">
+                    <li><strong>Multi-tab Support</strong>: Create multiple tabs to manage different documents</li>
+                    <li><strong>Mermaid Diagrams</strong>: Supports flowcharts, sequence diagrams, Gantt charts, etc.</li>
+                    <li><strong>PDF Export</strong>: Download your preview as a PDF with one click</li>
+                    <li><strong>Dark/Light Theme</strong>: Toggle between display themes</li>
+                    <li><strong>Font Size Adjustment</strong>: Adjust font size from 10-24px</li>
+                </ul>
+            </div>
 
-            <h3 class="text-subtitle-2 font-weight-bold mb-1">💾 Data Storage</h3>
-            <v-alert type="info" variant="tonal" density="compact" class="mb-3">
-              <p class="mb-0 text-body-2">
-                All data (including tab contents and settings) is stored in the <strong>browser's local storage (localStorage)</strong>.
-              </p>
-              <p class="mb-0 mt-1 text-body-2">
-                This means your data only exists in this browser. Clearing browser data will result in data loss.
-              </p>
-            </v-alert>
-
-            <h3 class="text-subtitle-2 font-weight-bold mb-1">⌨️ Quick Tips</h3>
-            <ul class="help-list mb-2">
-              <li>Double-click a tab name to edit it</li>
-              <li>Drag the divider to adjust panel ratio</li>
-              <li>Click the menu icon (top-left) to show/hide the file list</li>
-            </ul>
+            <div class="help-section mb-6">
+                <h3 class="flex align-center gap-2 text-primary font-weight-bold mb-2">
+                    <v-icon size="small" color="primary">mdi-database-outline</v-icon>
+                    Data Storage
+                </h3>
+                <v-alert type="info" variant="tonal" density="compact" class="info-alert">
+                  <p class="mb-0 text-caption font-weight-medium">
+                    All data is stored in your <strong>browser's local storage</strong>. Clearing browser data will result in data loss.
+                  </p>
+                </v-alert>
+            </div>
           </div>
         </v-card-text>
 
         <v-divider></v-divider>
 
-        <v-card-actions class="pa-3">
+        <v-card-actions class="pa-4 bg-surface-hover">
           <v-btn
-            variant="outlined"
-            color="primary"
-            size="small"
+            variant="text"
+            prepend-icon="mdi-github"
             href="https://github.com/kuochunchang/md-viewer"
             target="_blank"
-            prepend-icon="mdi-github"
+            class="text-none"
           >
-            GitHub
+            GitHub Repository
           </v-btn>
           <v-spacer></v-spacer>
-          <v-btn variant="flat" color="primary" size="small" @click="showHelpDialog = false">
+          <v-btn variant="flat" color="primary" class="px-6" @click="showHelpDialog = false">
             Close
           </v-btn>
         </v-card-actions>
@@ -213,14 +213,12 @@ async function handlePdfExport() {
     await exportPreviewToPdf('.preview-content', tabName)
   } catch (error) {
     console.error('PDF export failed:', error)
-    // Could add a snackbar notification here in the future
   }
 }
 
 // Toggle Theme
 function toggleTheme() {
   theme.global.name.value = isDark.value ? 'light' : 'dark'
-  // Save theme preference to localStorage
   localStorage.setItem('theme', theme.global.name.value)
 }
 
@@ -248,79 +246,71 @@ if (savedTheme === 'dark' || savedTheme === 'light') {
 .settings-menu {
   display: flex;
   align-items: center;
-  gap: 4px;
-  margin-left: auto;
-  padding-right: 8px;
+  gap: 2px;
 }
 
-.pdf-export-btn,
-.theme-toggle-btn,
-.font-size-btn,
-.help-btn {
-  flex-shrink: 0;
-}
-
-.font-size-menu {
-  .font-size-controls {
-    .font-size-display {
-      text-align: center;
-      color: rgba(var(--v-theme-on-surface), 0.7);
-    }
-
-    .font-size-presets {
-      display: flex;
-      gap: 8px;
-      justify-content: center;
-      flex-wrap: wrap;
-
-      .preset-btn {
-        min-width: 60px;
-      }
-    }
+.settings-btn {
+  color: var(--text-tertiary);
+  border-radius: var(--radius-sm);
+  transition: all 0.2s;
+  
+  &:hover {
+    color: var(--text-primary);
+    background-color: var(--bg-surface-hover);
   }
 }
 
-.help-dialog {
-  .help-content {
-    h3 {
-      color: rgba(var(--v-theme-on-surface), 0.87);
-      font-size: 0.875rem;
-    }
+.popup-card {
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow-lg);
+  border-radius: var(--radius-lg) !important;
+}
 
-    p {
-      color: rgba(var(--v-theme-on-surface), 0.7);
-      line-height: 1.5;
-      font-size: 0.8125rem;
-    }
+.popup-title {
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--border-color);
+  font-size: 1rem;
+  font-weight: 600;
+}
 
-    .help-list {
-      padding-left: 18px;
-      color: rgba(var(--v-theme-on-surface), 0.7);
-      font-size: 0.8125rem;
-
-      li {
-        margin-bottom: 4px;
-        line-height: 1.4;
-      }
-    }
+.popup-content {
+  padding: 1.5rem;
+  
+  h3 {
+    font-size: 0.95rem;
+    color: var(--text-primary);
+  }
+  
+  p, li {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    line-height: 1.6;
   }
 }
 
-// Responsive Design: Adjust button size on small screens
+.font-size-presets {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+
+  .preset-btn {
+    min-width: 40px;
+    border-radius: var(--radius-sm);
+  }
+}
+
+.help-list {
+  padding-left: 1.25rem;
+  li {
+    margin-bottom: 0.5rem;
+  }
+}
+
+// Responsive Design
 @media (max-width: 600px) {
   .settings-menu {
-    gap: 2px;
-    padding-right: 4px;
-  }
-
-  .pdf-export-btn,
-  .theme-toggle-btn,
-  .font-size-btn,
-  .help-btn {
-    :deep(.v-btn) {
-      width: 36px;
-      height: 36px;
-    }
+    gap: 0;
   }
 }
 </style>

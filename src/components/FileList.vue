@@ -1,17 +1,21 @@
 <template>
-  <div class="file-list" :class="{ 'is-dark': isDark }">
+  <div class="file-list">
     <div class="file-list-header">
-      <span class="header-title">FILES</span>
-      <v-btn
-        icon
-        variant="text"
-        size="x-small"
-        class="add-file-btn"
-        title="New File"
-        @click="handleAddFile"
-      >
-        <v-icon size="18">mdi-plus</v-icon>
-      </v-btn>
+      <span class="header-title">DOCUMENTS</span>
+      <v-tooltip location="bottom" text="New File">
+        <template #activator="{ props }">
+          <v-btn
+            icon
+            variant="text"
+            size="x-small"
+            class="action-btn"
+            v-bind="props"
+            @click="handleAddFile"
+          >
+            <v-icon size="18">mdi-plus</v-icon>
+          </v-btn>
+        </template>
+      </v-tooltip>
     </div>
     
     <div class="files-container">
@@ -22,7 +26,7 @@
         :class="{ active: file.id === activeTabId }"
         @click="handleFileClick(file.id)"
       >
-        <v-icon size="18" class="file-icon">mdi-file-document-outline</v-icon>
+        <v-icon size="16" class="file-icon" color="primary">mdi-file-document-outline</v-icon>
         <span class="file-name">{{ file.name }}</span>
         
         <div class="file-actions">
@@ -30,11 +34,11 @@
             icon
             variant="text"
             size="x-small"
-            class="delete-file-btn"
+            class="delete-btn"
             title="Delete File"
             @click.stop="confirmDelete(file.id)"
           >
-            <v-icon size="16">mdi-delete-outline</v-icon>
+            <v-icon size="14">mdi-trash-can-outline</v-icon>
           </v-btn>
         </div>
       </div>
@@ -52,14 +56,11 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { useTheme } from 'vuetify'
 import { useTabsStore } from '../stores/tabsStore'
 import ConfirmDialog from './ConfirmDialog.vue'
 
 const tabsStore = useTabsStore()
-const theme = useTheme()
 
-const isDark = computed(() => theme.global.name.value === 'dark')
 const files = computed(() => tabsStore.tabs)
 const activeTabId = computed(() => tabsStore.activeTabId)
 
@@ -69,7 +70,7 @@ const pendingDeleteId = ref<string | null>(null)
 const confirmMessage = computed(() => {
   if (pendingDeleteId.value) {
     const file = files.value.find(f => f.id === pendingDeleteId.value)
-    return `Are you sure you want to permanently delete "${file?.name || 'this file'}"? This action cannot be undone.`
+    return `Are you sure you want to permanently delete "${file?.name || 'this file'}"?`
   }
   return 'Are you sure you want to delete this file?'
 })
@@ -104,95 +105,112 @@ function cancelDelete() {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background-color: #F3F3F3;
-  color: #616161;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-
-  &.is-dark {
-    background-color: #252526;
-    color: #CCCCCC;
-
-    .file-list-header {
-      background-color: #252526;
-    }
-
-    .file-item {
-      &:hover {
-        background-color: #2A2D2E;
-      }
-
-      &.active {
-        background-color: #37373D;
-        color: #FFFFFF;
-      }
-    }
-  }
+  background-color: var(--bg-sidebar);
+  border-right: 1px solid var(--border-color);
+  color: var(--text-secondary);
 }
 
 .file-list-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 16px;
-  font-size: 11px;
-  font-weight: bold;
-  letter-spacing: 0.8px;
-  background-color: #F3F3F3;
+  padding: 1rem 1rem 0.5rem;
+  margin-bottom: 0.5rem;
+  
+  .header-title {
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    color: var(--text-tertiary);
+  }
+}
+
+.action-btn {
+  color: var(--text-tertiary);
+  opacity: 0.7;
+  border-radius: var(--radius-sm);
+  
+  &:hover {
+    background-color: var(--bg-surface-hover);
+    color: var(--text-primary);
+    opacity: 1;
+  }
 }
 
 .files-container {
   flex: 1;
   overflow-y: auto;
-  padding: 4px 0;
+  padding: 0 0.5rem;
+  
+  &::-webkit-scrollbar {
+    width: 4px;
+  }
 }
 
 .file-item {
   display: flex;
   align-items: center;
-  padding: 4px 16px;
+  padding: 0.5rem 0.75rem;
+  margin-bottom: 2px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
-  transition: background-color 0.1s;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  font-size: 0.9rem;
   position: relative;
-  height: 28px;
+  height: 36px;
+  color: var(--text-secondary);
 
   &:hover {
-    background-color: #E8E8E8;
+    background-color: var(--bg-surface-hover);
+    color: var(--text-primary);
 
     .file-actions {
-      display: flex;
+      opacity: 1;
     }
   }
 
   &.active {
-    background-color: #E2E2E2;
-    color: #333333;
+    background-color: var(--bg-surface); // Or a distinct active sidebar color
+    color: var(--primary-color);
+    font-weight: 500;
+    box-shadow: var(--shadow-sm);
+    
+    .file-icon {
+      opacity: 1;
+    }
   }
 
   .file-icon {
-    margin-right: 8px;
-    opacity: 0.8;
+    margin-right: 0.75rem;
+    opacity: 0.7;
+    transition: opacity 0.2s;
   }
 
   .file-name {
     flex: 1;
-    font-size: 13px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    line-height: normal;
   }
 
   .file-actions {
-    display: none;
+    display: flex;
     align-items: center;
-    gap: 4px;
-    margin-right: -8px;
+    opacity: 0;
+    transition: opacity 0.2s;
+    margin-left: 0.5rem;
   }
 }
 
-.add-file-btn, .delete-file-btn {
-  opacity: 0.7;
+.delete-btn {
+  color: var(--text-tertiary);
+  height: 24px;
+  width: 24px;
+  
   &:hover {
-    opacity: 1;
+    color: #ef4444; // Red
+    background-color: rgba(239, 68, 68, 0.1);
   }
 }
 </style>
