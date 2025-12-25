@@ -56,15 +56,19 @@
         >
           <template #left>
             <MarkdownEditor
+              ref="editorRef"
               :model-value="activeTabContent"
               :font-size="fontSize"
               @update:model-value="handleContentUpdate"
+              @scroll="handleEditorScroll"
             />
           </template>
           <template #right>
             <MarkdownPreview
+              ref="previewRef"
               :content="activeTabContent"
               :font-size="fontSize"
+              @scroll="handlePreviewScroll"
             />
           </template>
         </SplitPane>
@@ -74,7 +78,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import FileList from './components/FileList.vue'
 import MarkdownEditor from './components/MarkdownEditor.vue'
 import MarkdownPreview from './components/MarkdownPreview.vue'
@@ -97,6 +101,26 @@ const showSidebar = computed({
   }
 })
 
+// Scroll Sync Logic
+const editorRef = ref<any>(null)
+const previewRef = ref<any>(null)
+const isSyncingLeft = ref(false)
+const isSyncingRight = ref(false)
+
+function handleEditorScroll(ratio: number) {
+  if (isSyncingLeft.value) return
+  isSyncingRight.value = true
+  previewRef.value?.scrollToRatio(ratio)
+  setTimeout(() => { isSyncingRight.value = false }, 50)
+}
+
+function handlePreviewScroll(ratio: number) {
+  if (isSyncingRight.value) return
+  isSyncingLeft.value = true
+  editorRef.value?.scrollToRatio(ratio)
+  setTimeout(() => { isSyncingLeft.value = false }, 50)
+}
+
 function handleContentUpdate(content: string) {
   if (tabsStore.activeTabId) {
     tabsStore.updateTabContent(tabsStore.activeTabId, content)
@@ -115,11 +139,22 @@ onMounted(() => {
 
 .app-wrapper {
   background: var(--bg-app);
+  height: 100vh;     // Force full viewport height
+  overflow: hidden;  // Prevent global window scroll
 }
 
 .app-container {
   width: 100%;
   height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden; // Ensure internal components handle scrolling
+}
+
+// Ensure v-main takes available space but doesn't overflow window
+:deep(.v-main) {
+  height: 100%;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
 }

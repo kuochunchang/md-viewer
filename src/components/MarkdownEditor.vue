@@ -7,6 +7,7 @@
       :style="{ fontSize: fontSize + 'px' }"
       placeholder="Enter Markdown content here..."
       @input="handleInput"
+      @scroll="handleScroll"
     ></textarea>
   </div>
 </template>
@@ -25,6 +26,7 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<{
   'update:modelValue': [value: string]
+  'scroll': [ratio: number]
 }>()
 
 const textareaRef = ref<HTMLTextAreaElement | null>(null)
@@ -42,6 +44,30 @@ const handleInput = (e: Event) => {
   localContent.value = target.value
   emit('update:modelValue', target.value)
 }
+
+const handleScroll = (e: Event) => {
+  const target = e.target as HTMLElement
+  if (!target) return
+  
+  const ratio = target.scrollTop / (target.scrollHeight - target.clientHeight)
+  emit('scroll', ratio)
+}
+
+// Expose method for external scrolling
+const scrollToRatio = (ratio: number) => {
+  const textarea = textareaRef.value
+  if (!textarea) return
+  
+  const targetScrollTop = ratio * (textarea.scrollHeight - textarea.clientHeight)
+  // Check if difference is significant to avoid jitter
+  if (Math.abs(textarea.scrollTop - targetScrollTop) > 5) {
+    textarea.scrollTop = targetScrollTop
+  }
+}
+
+defineExpose({
+  scrollToRatio
+})
 </script>
 
 <style scoped lang="scss">

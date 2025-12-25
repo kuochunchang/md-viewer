@@ -1,7 +1,9 @@
 <template>
   <div
+    ref="containerRef"
     class="markdown-preview"
     :style="{ fontSize: fontSize + 'px' }"
+    @scroll="handleScroll"
   >
     <div
       ref="previewContentRef"
@@ -77,6 +79,34 @@ watch(renderedHtml, async () => {
 // Render Mermaid after component mount
 onMounted(async () => {
   await renderMermaidCharts()
+})
+// Reference to preview container (scrolling element)
+const containerRef = ref<HTMLElement | null>(null)
+
+const emit = defineEmits<{
+  'scroll': [ratio: number]
+}>()
+
+const handleScroll = (e: Event) => {
+  const target = e.target as HTMLElement
+  if (!target) return
+  
+  const ratio = target.scrollTop / (target.scrollHeight - target.clientHeight)
+  emit('scroll', ratio)
+}
+
+const scrollToRatio = (ratio: number) => {
+  const container = containerRef.value
+  if (!container) return
+  
+  const targetScrollTop = ratio * (container.scrollHeight - container.clientHeight)
+  if (Math.abs(container.scrollTop - targetScrollTop) > 5) {
+    container.scrollTop = targetScrollTop
+  }
+}
+
+defineExpose({
+  scrollToRatio
 })
 </script>
 
