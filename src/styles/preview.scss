@@ -17,7 +17,7 @@
   box-shadow: var(--shadow-md);
 
   line-height: 1.7;
-  font-size: 1.05rem;
+  font-size: 1em; // Inherit dynamic font size from parent (.markdown-preview)
 
   // Responsive adjustment
   @media (max-width: 768px) {

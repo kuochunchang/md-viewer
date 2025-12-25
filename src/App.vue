@@ -10,24 +10,24 @@
     </v-navigation-drawer>
 
     <v-app-bar class="app-header" flat height="48">
-      <div class="d-flex align-center h-100 flex-grow-1 pl-2">
+      <div class="d-flex align-center h-100 w-100 pl-2" style="overflow: hidden;">
+        <!-- Menu Button (Fixed Left) -->
         <v-btn
           icon
           variant="text"
           size="small"
-          class="nav-btn mr-2"
+          class="nav-btn mr-2 flex-shrink-0"
           :title="showSidebar ? 'Hide Sidebar' : 'Show Sidebar'"
           @click="tabsStore.toggleSidebar"
         >
           <v-icon size="20">mdi-menu</v-icon>
         </v-btn>
 
-        <TabBar />
+        <!-- Tab Bar (Fluid Middle) -->
+        <TabBar style="min-width: 0;" />
         
-        <v-spacer></v-spacer>
-
-        <!-- Editor Toggle / Right Actions -->
-        <div class="d-flex align-center pr-2 gap-2">
+        <!-- Editor Toggle / Right Actions (Fixed Right) -->
+        <div class="d-flex align-center pr-2 gap-2 flex-shrink-0">
            <v-btn
             icon
             variant="text"

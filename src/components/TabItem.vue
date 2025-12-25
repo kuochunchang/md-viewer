@@ -20,7 +20,7 @@
         @keyup.esc="handleCancel"
         @click.stop
       />
-      <span v-else class="tab-name">{{ tab.name }}</span>
+      <span v-else class="tab-name">{{ displayName }}</span>
     </div>
 
     <v-btn
@@ -36,7 +36,7 @@
 </template>
 
 <script setup lang="ts">
-import { nextTick, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import type { Tab } from '../types'
 
 interface Props {
@@ -56,6 +56,13 @@ const emit = defineEmits<Emits>()
 const isEditing = ref(false)
 const editingName = ref('')
 const nameInputRef = ref<HTMLInputElement | null>(null)
+
+const displayName = computed(() => {
+  if (props.tab.name.length > 30) {
+    return props.tab.name.slice(0, 30) + '...'
+  }
+  return props.tab.name
+})
 
 watch(isEditing, async (newVal) => {
   if (newVal) {
@@ -106,9 +113,9 @@ function handleClose() {
   align-items: center;
   justify-content: space-between;
   
-  flex: 0 1 auto; // Flexible width, shrink if needed but try to fit content
+  flex: 0 0 auto; // Don't shrink, don't grow, just be natural width (scrolling handled by parent)
   min-width: 120px;
-  max-width: 240px; // Increased max width
+  max-width: 400px; // Allow wide tabs up to ~30-40 chars
   height: 36px;
   
   padding: 0 8px 0 16px; // Increased left padding slightly
