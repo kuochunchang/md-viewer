@@ -61,7 +61,18 @@ All your data (documents, settings) is stored in your browser's **localStorage**
 - Vuetify 3
 - Vite
 - marked.js + highlight.js
+- marked.js + highlight.js
 - Mermaid.js
+
+## 🧠 LLM Context Management Workflow
+
+This tool is designed to act as an "External Context Buffer" for your LLM interactions:
+
+1. **Diverge**: Discuss freely with LLM, generating various snippets.
+2. **Capture**: Paste valuable segments into different tabs.
+3. **Organize**: Drag tabs to reorder snippets logically.
+4. **Converge**: Click "Copy All" to merge them into a structured context.
+5. **Re-prompt**: Feed the organized context back to LLM for better results.
 
 ## 📝 License
 

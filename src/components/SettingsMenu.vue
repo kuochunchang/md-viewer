@@ -143,6 +143,14 @@
 
             <div class="help-section mb-6">
                 <h3 class="flex align-center gap-2 text-primary font-weight-bold mb-2">
+                    <v-icon size="small" color="primary">mdi-brain</v-icon>
+                    Your Context Management Tool
+                </h3>
+                <p>Use tabs to organize conversation fragments, drag to sort them, and "Copy All" to merge context for re-prompting LLMs.</p>
+            </div>
+
+            <div class="help-section mb-6">
+                <h3 class="flex align-center gap-2 text-primary font-weight-bold mb-2">
                     <v-icon size="small" color="primary">mdi-database-outline</v-icon>
                     Data Storage
                 </h3>
