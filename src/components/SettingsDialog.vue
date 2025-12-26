@@ -467,12 +467,12 @@ const shouldOfferMigration = computed(() => {
 
 // Sync interval options
 const syncIntervalOptions = [
-  { text: '1 分鐘', value: 1 },
-  { text: '5 分鐘', value: 5 },
-  { text: '10 分鐘', value: 10 },
-  { text: '15 分鐘', value: 15 },
-  { text: '30 分鐘', value: 30 },
-  { text: '1 小時', value: 60 }
+  { text: '1 Minute', value: 1 },
+  { text: '5 Minutes', value: 5 },
+  { text: '10 Minutes', value: 10 },
+  { text: '15 Minutes', value: 15 },
+  { text: '30 Minutes', value: 30 },
+  { text: '1 Hour', value: 60 }
 ]
 
 // Watch for dialog open to sync local state
@@ -562,7 +562,7 @@ async function handleLoadFromCloud() {
 }
 
 function formatTime(timestamp: number): string {
-  return new Date(timestamp).toLocaleString('zh-TW', {
+  return new Date(timestamp).toLocaleString('en-US', {
     month: 'short',
     day: 'numeric',
     hour: '2-digit',
@@ -608,11 +608,11 @@ async function performMigration() {
       localSettings.value.provider = 'google'
       settingsStore.setProvider('google')
     } else {
-      migrationErrorMessage.value = googleDocs.syncStatus.value.error || '未知錯誤'
+      migrationErrorMessage.value = googleDocs.syncStatus.value.error || 'Unknown Error'
       showMigrationError.value = true
     }
   } catch (error) {
-    migrationErrorMessage.value = (error as Error).message || '遷移過程發生錯誤'
+    migrationErrorMessage.value = (error as Error).message || 'Error occurred during migration'
     showMigrationError.value = true
   } finally {
     isMigrating.value = false

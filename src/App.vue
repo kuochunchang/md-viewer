@@ -74,6 +74,31 @@
         </SplitPane>
       </div>
     </v-main>
+
+
+    <v-snackbar
+      v-model="showConflictSnackbar"
+      color="warning"
+      location="top"
+      :timeout="-1" 
+      class="sync-conflict-snackbar"
+    >
+      <div class="d-flex align-center">
+        <v-icon start icon="mdi-cloud-alert" color="white"></v-icon>
+        <div class="mr-4 text-white">
+          <div class="font-weight-bold">Sync Stopped</div>
+          <div class="text-caption">Cloud data is newer</div>
+        </div>
+        <v-spacer></v-spacer>
+        <v-btn variant="text" size="small" color="white" @click="openSettings">
+          Resolve
+        </v-btn>
+        <v-btn icon size="x-small" variant="text" color="white" @click="showConflictSnackbar = false">
+          <v-icon>mdi-close</v-icon>
+        </v-btn>
+      </div>
+    </v-snackbar>
+
     <!-- Settings Dialog (Global) -->
     <SettingsDialog />
   </v-app>
@@ -137,6 +162,12 @@ function handleContentUpdate(content: string) {
 // Auto-sync timer and dirty tracking
 let autoSyncTimer: ReturnType<typeof setInterval> | null = null
 let lastSyncedDataHash: string | null = null
+const showConflictSnackbar = ref(false)
+
+function openSettings() {
+  showConflictSnackbar.value = false
+  settingsStore.openSettingsDialog()
+}
 
 // 計算資料的 hash 用於比較
 function getDataHash(data: object): string {
@@ -187,7 +218,7 @@ function setupAutoSync() {
             console.log('[AutoSync] Sync successful')
           } else if (result === 'conflict') {
             console.warn('[AutoSync] Conflict detected, skipping sync to protect remote data')
-            // TODO: 可以在 UI 顯示一個小警告icon
+            showConflictSnackbar.value = true
           }
         } else {
           console.log('[AutoSync] No changes, skipping sync')

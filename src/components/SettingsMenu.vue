@@ -91,7 +91,7 @@
     </v-menu>
 
     <!-- Settings Button -->
-    <v-tooltip location="bottom" text="設定">
+    <v-tooltip location="bottom" text="Settings">
       <template #activator="{ props }">
         <v-btn
           icon
