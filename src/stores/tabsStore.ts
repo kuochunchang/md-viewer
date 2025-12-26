@@ -5,18 +5,23 @@ import {
   saveToLocalStorage,
   type StoredTabsData
 } from '../composables/useLocalStorage'
-import type { Tab } from '../types'
+import type { Tab, Folder } from '../types'
 import { debounce } from '../utils/debounce'
 import { DEFAULT_CONTENT } from '../utils/defaultContent'
 
 export const useTabsStore = defineStore('tabs', () => {
   // State
   const tabs = ref<Tab[]>([])
+  const folders = ref<Folder[]>([])
   const openTabIds = ref<string[]>([])
   const activeTabId = ref<string | null>(null)
   const fontSize = ref<number>(14)
   const showEditor = ref<boolean>(true)
   const showSidebar = ref<boolean>(true)
+
+  // Editing state (global to ensure only one item is being edited at a time)
+  const editingItemId = ref<string | null>(null)
+  const editingItemType = ref<'file' | 'folder' | null>(null)
 
   // Getters
   const activeTab = computed(() => {
@@ -33,20 +38,120 @@ export const useTabsStore = defineStore('tabs', () => {
       .filter((tab): tab is Tab => !!tab)
   })
 
+  // Folder getters
+  const rootFolders = computed(() => {
+    return folders.value.filter(f => f.parentId === null)
+  })
+
+  const rootTabs = computed(() => {
+    return tabs.value.filter(t => t.folderId === null)
+  })
+
+  function getChildFolders(parentId: string): Folder[] {
+    return folders.value.filter(f => f.parentId === parentId)
+  }
+
+  function getTabsInFolder(folderId: string): Tab[] {
+    return tabs.value.filter(t => t.folderId === folderId)
+  }
+
   // Actions
-  function addTab(name?: string): string {
+  function addTab(name?: string, folderId?: string | null): string {
     const isFirstTab = tabs.value.length === 0
     const newTab: Tab = {
       id: `tab-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
       name: name || `New Document ${tabs.value.length + 1}`,
       content: isFirstTab ? DEFAULT_CONTENT : '', // Only the first tab uses the template, others are blank
-      createdAt: Date.now()
+      createdAt: Date.now(),
+      folderId: folderId ?? null
     }
     tabs.value.push(newTab)
     openTabIds.value.push(newTab.id)
     activeTabId.value = newTab.id
     saveToStore()
     return newTab.id
+  }
+
+  function addFolder(name?: string, parentId?: string | null): string {
+    const newFolder: Folder = {
+      id: `folder-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+      name: name || `New Folder ${folders.value.length + 1}`,
+      parentId: parentId ?? null,
+      createdAt: Date.now(),
+      expanded: true
+    }
+    folders.value.push(newFolder)
+    saveToStore()
+    return newFolder.id
+  }
+
+  function renameFolder(id: string, name: string): void {
+    const folder = folders.value.find(f => f.id === id)
+    if (folder && name.trim()) {
+      folder.name = name.trim()
+      saveToStore()
+    }
+  }
+
+  function deleteFolder(id: string): void {
+    // Move all files in this folder to root
+    tabs.value.forEach(tab => {
+      if (tab.folderId === id) {
+        tab.folderId = null
+      }
+    })
+
+    // Move all child folders to root
+    folders.value.forEach(folder => {
+      if (folder.parentId === id) {
+        folder.parentId = null
+      }
+    })
+
+    // Remove the folder
+    const index = folders.value.findIndex(f => f.id === id)
+    if (index !== -1) {
+      folders.value.splice(index, 1)
+    }
+    saveToStore()
+  }
+
+  function toggleFolderExpanded(id: string): void {
+    const folder = folders.value.find(f => f.id === id)
+    if (folder) {
+      folder.expanded = !folder.expanded
+      saveToStore()
+    }
+  }
+
+  function moveTabToFolder(tabId: string, folderId: string | null): void {
+    const tab = tabs.value.find(t => t.id === tabId)
+    if (tab) {
+      tab.folderId = folderId
+      saveToStore()
+    }
+  }
+
+  function moveFolderToFolder(folderId: string, parentId: string | null): void {
+    const folder = folders.value.find(f => f.id === folderId)
+    if (folder) {
+      // Prevent moving folder into itself or its children
+      if (parentId && isDescendantFolder(parentId, folderId)) {
+        return
+      }
+      folder.parentId = parentId
+      saveToStore()
+    }
+  }
+
+  function isDescendantFolder(targetId: string, ancestorId: string): boolean {
+    let current = folders.value.find(f => f.id === targetId)
+    while (current) {
+      if (current.id === ancestorId) return true
+      if (!current.parentId) return false
+      current = folders.value.find(f => f.id === current!.parentId)
+    }
+    return false
   }
 
   function openTab(id: string): void {
@@ -139,6 +244,7 @@ export const useTabsStore = defineStore('tabs', () => {
   function saveToStore(): void {
     const data: StoredTabsData = {
       tabs: tabs.value,
+      folders: folders.value,
       activeTabId: activeTabId.value,
       openTabIds: openTabIds.value,
       fontSize: fontSize.value,
@@ -151,7 +257,18 @@ export const useTabsStore = defineStore('tabs', () => {
   function loadFromStore(): boolean {
     const stored = loadFromLocalStorage()
     if (stored && stored.tabs.length > 0) {
-      tabs.value = stored.tabs
+      // Load tabs with backward compatibility for folderId
+      tabs.value = stored.tabs.map(t => ({
+        ...t,
+        folderId: t.folderId ?? null
+      }))
+
+      // Load folders (if exists)
+      if (stored.folders && Array.isArray(stored.folders)) {
+        folders.value = stored.folders
+      } else {
+        folders.value = []
+      }
 
       // Restore open tabs
       if (stored.openTabIds && Array.isArray(stored.openTabIds)) {
@@ -188,7 +305,7 @@ export const useTabsStore = defineStore('tabs', () => {
   const debouncedSave = debounce(saveToStore, 500)
 
   watch(
-    [tabs, activeTabId, openTabIds, fontSize, showEditor, showSidebar],
+    [tabs, folders, activeTabId, openTabIds, fontSize, showEditor, showSidebar],
     () => {
       if (tabs.value.length > 0) {
         debouncedSave()
@@ -204,17 +321,45 @@ export const useTabsStore = defineStore('tabs', () => {
     }
   }
 
+  // Editing functions
+  function startEditing(id: string, type: 'file' | 'folder') {
+    editingItemId.value = id
+    editingItemType.value = type
+  }
+
+  function stopEditing() {
+    editingItemId.value = null
+    editingItemType.value = null
+  }
+
+  function isEditing(id: string): boolean {
+    return editingItemId.value === id
+  }
+
   return {
     tabs,
+    folders,
     openTabIds,
     activeTabId,
     fontSize,
     showEditor,
     showSidebar,
+    editingItemId,
+    editingItemType,
     activeTab,
     activeTabContent,
     openTabs,
+    rootFolders,
+    rootTabs,
+    getChildFolders,
+    getTabsInFolder,
     addTab,
+    addFolder,
+    renameFolder,
+    deleteFolder,
+    toggleFolderExpanded,
+    moveTabToFolder,
+    moveFolderToFolder,
     openTab,
     closeTab,
     deleteFile,
@@ -227,6 +372,9 @@ export const useTabsStore = defineStore('tabs', () => {
     initialize,
     saveToStore,
     loadFromStore,
+    startEditing,
+    stopEditing,
+    isEditing,
     reorderTabs: (fromIndex: number, toIndex: number) => {
       const item = openTabIds.value.splice(fromIndex, 1)[0]
       openTabIds.value.splice(toIndex, 0, item)

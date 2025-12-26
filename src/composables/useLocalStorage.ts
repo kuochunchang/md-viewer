@@ -3,13 +3,23 @@
  * Provides type-safe localStorage operations
  */
 
+export interface StoredFolder {
+  id: string
+  name: string
+  parentId: string | null
+  createdAt: number
+  expanded: boolean
+}
+
 export interface StoredTabsData {
   tabs: Array<{
     id: string
     name: string
     content: string
     createdAt: number
+    folderId?: string | null  // optional for backward compatibility
   }>
+  folders?: StoredFolder[]  // optional for backward compatibility
   activeTabId: string | null
   openTabIds: string[]
   fontSize: number
