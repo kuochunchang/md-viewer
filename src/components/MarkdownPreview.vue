@@ -60,7 +60,46 @@ const copied = ref(false)
 
 const copyToClipboard = async () => {
   try {
-    const htmlContent = previewContentRef.value?.innerHTML || ''
+    // Clone the content to modify without affecting the original
+    const clonedContent = previewContentRef.value?.cloneNode(true) as HTMLElement
+    if (!clonedContent) return
+    
+    // Add inline styles to tables for Google Docs compatibility
+    const tables = clonedContent.querySelectorAll('table')
+    tables.forEach(table => {
+      table.style.borderCollapse = 'collapse'
+      table.style.width = '100%'
+      table.style.marginBottom = '16px'
+    })
+    
+    // Add inline styles to table headers
+    const ths = clonedContent.querySelectorAll('th')
+    ths.forEach(th => {
+      th.style.border = '1px solid #ccc'
+      th.style.padding = '8px 12px'
+      th.style.backgroundColor = '#f5f5f5'
+      th.style.fontWeight = 'bold'
+      th.style.textAlign = 'left'
+    })
+    
+    // Add inline styles to table cells
+    const tds = clonedContent.querySelectorAll('td')
+    tds.forEach(td => {
+      td.style.border = '1px solid #ccc'
+      td.style.padding = '8px 12px'
+    })
+    
+    // Add inline styles to code elements
+    const codes = clonedContent.querySelectorAll('code')
+    codes.forEach(code => {
+      code.style.backgroundColor = '#f0f0f0'
+      code.style.padding = '2px 6px'
+      code.style.borderRadius = '4px'
+      code.style.fontFamily = 'monospace'
+      code.style.fontSize = '0.9em'
+    })
+    
+    const htmlContent = clonedContent.innerHTML
     
     // Create a ClipboardItem with HTML content so it can be pasted
     // into Google Docs with proper formatting preserved
