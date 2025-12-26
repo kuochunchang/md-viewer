@@ -93,8 +93,25 @@ function loadStoredAuth() {
                     syncFileId.value = storedFileId
                 }
             } else {
-                // Token 過期，清除
-                clearStoredAuth()
+                // Token 過期，只清除 token，保留 userInfo 和 syncFileId
+                // 這樣重新授權後可以無縫繼續使用
+                clearStoredAuth(false)
+
+                // 仍然載入 userInfo 和 syncFileId（用於顯示和重新連接）
+                if (storedUserInfo) {
+                    userInfo.value = JSON.parse(storedUserInfo)
+                }
+                if (storedFileId) {
+                    syncFileId.value = storedFileId
+                }
+            }
+        } else {
+            // 沒有 token 但可能有 userInfo 和 syncFileId（之前的連接資訊）
+            if (storedUserInfo) {
+                userInfo.value = JSON.parse(storedUserInfo)
+            }
+            if (storedFileId) {
+                syncFileId.value = storedFileId
             }
         }
     } catch (error) {
@@ -113,16 +130,21 @@ function saveAuth(token: string, expiresIn: number, user: GoogleUserInfo) {
     userInfo.value = user
 }
 
-function clearStoredAuth() {
+function clearStoredAuth(clearAll: boolean = true) {
     localStorage.removeItem(STORAGE_KEYS.ACCESS_TOKEN)
     localStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN)
     localStorage.removeItem(STORAGE_KEYS.TOKEN_EXPIRY)
-    localStorage.removeItem(STORAGE_KEYS.USER_INFO)
-    localStorage.removeItem(STORAGE_KEYS.SYNC_FILE_ID)
 
     accessToken.value = null
-    userInfo.value = null
-    syncFileId.value = null
+
+    // 只有在完全登出時才清除 userInfo 和 syncFileId
+    // token 過期時保留這些資訊，方便重新授權後繼續使用
+    if (clearAll) {
+        localStorage.removeItem(STORAGE_KEYS.USER_INFO)
+        localStorage.removeItem(STORAGE_KEYS.SYNC_FILE_ID)
+        userInfo.value = null
+        syncFileId.value = null
+    }
 }
 
 function saveClientId(id: string) {
@@ -139,6 +161,9 @@ export function useGoogleDocs() {
     // Computed
     const isConnected = computed(() => !!accessToken.value && !!userInfo.value)
 
+    // 是否需要重新授權（有 userInfo 但沒有有效的 token）
+    const needsReauthorization = computed(() => !!userInfo.value && !accessToken.value)
+
     const syncStatus = computed<SyncStatus>(() => ({
         isConnected: isConnected.value,
         isSyncing: isSyncing.value,
@@ -147,8 +172,35 @@ export function useGoogleDocs() {
     }))
 
     // 初始化 - 載入已存的登入資訊
-    function initialize() {
+    async function initialize() {
         loadStoredAuth()
+
+        // 如果需要重新授權，嘗試靜默刷新
+        if (userInfo.value && !accessToken.value && clientId.value) {
+            console.log('[Sync] Token expired, attempting silent refresh...')
+            const refreshed = await trySilentRefresh()
+            if (refreshed) {
+                console.log('[Sync] Silent refresh successful, token restored')
+            } else {
+                console.log('[Sync] Silent refresh failed, user needs to reauthorize manually')
+            }
+        }
+
+        // 如果已登入但沒有 syncFileId，嘗試搜尋現有的同步檔案
+        if (accessToken.value && !syncFileId.value) {
+            try {
+                const existingFileId = await findExistingSyncFile()
+                if (existingFileId) {
+                    console.log('[Sync] Found existing sync file during init:', existingFileId)
+                    saveSyncFileId(existingFileId)
+                    // 取得檔案狀態
+                    const status = await checkCloudFileStatus(existingFileId)
+                    lastCloudModifiedTime.value = status.modifiedTime
+                }
+            } catch (e) {
+                console.warn('[Sync] Failed to search for existing sync file during init', e)
+            }
+        }
 
         // 如果有檔案，嘗試取得其最新狀態
         if (syncFileId.value && accessToken.value) {
@@ -197,7 +249,9 @@ export function useGoogleDocs() {
             authUrl.searchParams.set('response_type', 'token')
             authUrl.searchParams.set('scope', GOOGLE_SCOPES)
             authUrl.searchParams.set('state', state)
-            authUrl.searchParams.set('prompt', 'consent')
+            // 使用 select_account 讓用戶可以快速重新選擇帳號
+            // 如果只有一個帳號且已授權過，可能可以快速通過
+            authUrl.searchParams.set('prompt', 'select_account')
             authUrl.searchParams.set('include_granted_scopes', 'true')
 
             // 直接重定向到 Google 登入頁面
@@ -210,6 +264,102 @@ export function useGoogleDocs() {
             syncError.value = 'Sign in failed: ' + (error as Error).message
             return false
         }
+    }
+
+    // 嘗試靜默刷新 token（使用隱藏的 iframe）
+    // 如果用戶之前已經授權過，這可能可以在不打擾用戶的情況下獲取新 token
+    async function trySilentRefresh(): Promise<boolean> {
+        if (!clientId.value) return false
+
+        return new Promise((resolve) => {
+            const redirectUri = window.location.origin + window.location.pathname
+            const state = 'silent_refresh_' + Math.random().toString(36).substring(2)
+
+            const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth')
+            authUrl.searchParams.set('client_id', clientId.value)
+            authUrl.searchParams.set('redirect_uri', redirectUri)
+            authUrl.searchParams.set('response_type', 'token')
+            authUrl.searchParams.set('scope', GOOGLE_SCOPES)
+            authUrl.searchParams.set('state', state)
+            authUrl.searchParams.set('prompt', 'none')  // 不顯示任何 UI
+            authUrl.searchParams.set('include_granted_scopes', 'true')
+
+            // 建立隱藏的 iframe
+            const iframe = document.createElement('iframe')
+            iframe.style.display = 'none'
+            iframe.id = 'silent-refresh-iframe'
+
+            // 設定超時（5 秒）
+            const timeout = setTimeout(() => {
+                console.log('[Sync] Silent refresh timed out')
+                cleanup()
+                resolve(false)
+            }, 5000)
+
+            const cleanup = () => {
+                clearTimeout(timeout)
+                window.removeEventListener('message', handleMessage)
+                if (iframe.parentNode) {
+                    iframe.parentNode.removeChild(iframe)
+                }
+            }
+
+            const handleMessage = (event: MessageEvent) => {
+                // 只處理來自我們 iframe 的訊息
+                if (event.origin !== window.location.origin) return
+
+                if (event.data?.type === 'silent_refresh_result') {
+                    cleanup()
+                    if (event.data.success && event.data.token) {
+                        console.log('[Sync] Silent refresh successful')
+                        resolve(true)
+                    } else {
+                        console.log('[Sync] Silent refresh failed:', event.data.error)
+                        resolve(false)
+                    }
+                }
+            }
+
+            window.addEventListener('message', handleMessage)
+
+            // iframe 載入後會重定向回我們的頁面
+            // 我們需要在主頁面檢測這個情況
+            iframe.onload = () => {
+                // 嘗試讀取 iframe 的 URL（可能會因為同源政策而失敗）
+                try {
+                    const iframeUrl = iframe.contentWindow?.location.href
+                    if (iframeUrl?.includes('access_token=')) {
+                        // 解析 token
+                        const hash = new URL(iframeUrl).hash
+                        const params = new URLSearchParams(hash.substring(1))
+                        const token = params.get('access_token')
+                        const expiresIn = parseInt(params.get('expires_in') || '3600', 10)
+
+                        if (token && params.get('state') === state) {
+                            accessToken.value = token
+                            const expiry = Date.now() + expiresIn * 1000
+                            localStorage.setItem(STORAGE_KEYS.ACCESS_TOKEN, token)
+                            localStorage.setItem(STORAGE_KEYS.TOKEN_EXPIRY, expiry.toString())
+                            cleanup()
+                            console.log('[Sync] Silent refresh successful via iframe')
+                            resolve(true)
+                            return
+                        }
+                    } else if (iframeUrl?.includes('error=')) {
+                        cleanup()
+                        console.log('[Sync] Silent refresh denied')
+                        resolve(false)
+                        return
+                    }
+                } catch (e) {
+                    // 跨域錯誤，這是預期的
+                    // iframe 會嘗試 postMessage 回來
+                }
+            }
+
+            document.body.appendChild(iframe)
+            iframe.src = authUrl.toString()
+        })
     }
 
     // 處理 OAuth 回調（從 URL hash 取得 token）
@@ -354,16 +504,29 @@ export function useGoogleDocs() {
                 const updatedMetadata = await updateGoogleDoc(syncFileId.value, content)
                 lastCloudModifiedTime.value = updatedMetadata.modifiedTime
             } else {
-                // 建立新檔案
-                const fileId = await createGoogleDoc(content)
-                if (fileId) {
-                    saveSyncFileId(fileId)
-                    // 剛建立的檔案，取得其時間作為基準
-                    try {
-                        const status = await checkCloudFileStatus(fileId)
-                        lastCloudModifiedTime.value = status.modifiedTime
-                    } catch (e) {
-                        console.warn('Failed to get initial file time', e)
+                // 先搜尋是否已有同步檔案（避免重複建立）
+                const existingFileId = await findExistingSyncFile()
+
+                if (existingFileId) {
+                    // 找到現有檔案，使用它
+                    console.log('[Sync] Reusing existing sync file:', existingFileId)
+                    saveSyncFileId(existingFileId)
+
+                    // 更新現有檔案
+                    const updatedMetadata = await updateGoogleDoc(existingFileId, content)
+                    lastCloudModifiedTime.value = updatedMetadata.modifiedTime
+                } else {
+                    // 沒有找到現有檔案，建立新檔案
+                    const fileId = await createGoogleDoc(content)
+                    if (fileId) {
+                        saveSyncFileId(fileId)
+                        // 剛建立的檔案，取得其時間作為基準
+                        try {
+                            const status = await checkCloudFileStatus(fileId)
+                            lastCloudModifiedTime.value = status.modifiedTime
+                        } catch (e) {
+                            console.warn('Failed to get initial file time', e)
+                        }
                     }
                 }
             }
@@ -456,6 +619,45 @@ export function useGoogleDocs() {
         return result.id
     }
 
+    // 搜尋 Google Drive 是否已有同步檔案
+    async function findExistingSyncFile(): Promise<string | null> {
+        const hostname = window.location.hostname
+        const fileName = `MD Viewer Data [${hostname}].json`
+
+        try {
+            // 使用 Google Drive API 搜尋檔案
+            const query = encodeURIComponent(`name='${fileName}' and trashed=false`)
+            const response = await fetch(
+                `https://www.googleapis.com/drive/v3/files?q=${query}&fields=files(id,name,modifiedTime)`,
+                {
+                    headers: {
+                        'Authorization': `Bearer ${accessToken.value}`
+                    }
+                }
+            )
+
+            if (!response.ok) {
+                console.warn('[Sync] Failed to search for existing file:', response.status)
+                return null
+            }
+
+            const result = await response.json()
+            if (result.files && result.files.length > 0) {
+                // 如果找到多個檔案，使用最新修改的那個
+                const sortedFiles = result.files.sort((a: any, b: any) =>
+                    new Date(b.modifiedTime).getTime() - new Date(a.modifiedTime).getTime()
+                )
+                console.log('[Sync] Found existing sync file:', sortedFiles[0].id)
+                return sortedFiles[0].id
+            }
+
+            return null
+        } catch (error) {
+            console.warn('[Sync] Error searching for existing file:', error)
+            return null
+        }
+    }
+
     // 更新 Google Doc
     async function updateGoogleDoc(fileId: string, content: string): Promise<{ id: string, modifiedTime: string }> {
         const response = await fetch(
@@ -511,6 +713,7 @@ export function useGoogleDocs() {
     return {
         // State
         isConnected,
+        needsReauthorization,
         userInfo,
         syncStatus,
         clientId: computed(() => clientId.value),

@@ -78,6 +78,26 @@
                         Sign Out
                       </v-btn>
                     </template>
+                    <template v-else-if="googleDocs.needsReauthorization.value">
+                      <v-chip color="warning" size="small" variant="tonal">
+                        <v-avatar start size="24">
+                          <v-img v-if="googleDocs.userInfo.value?.picture" :src="googleDocs.userInfo.value.picture" />
+                          <v-icon v-else>mdi-account</v-icon>
+                        </v-avatar>
+                        {{ googleDocs.userInfo.value?.name || googleDocs.userInfo.value?.email }}
+                      </v-chip>
+                      <v-btn 
+                        size="x-small" 
+                        variant="tonal" 
+                        color="warning" 
+                        class="ml-2"
+                        :loading="isSigningIn"
+                        @click="handleReauthorize"
+                      >
+                        <v-icon start size="14">mdi-refresh</v-icon>
+                        Reconnect
+                      </v-btn>
+                    </template>
                     <template v-else>
                       <v-chip color="grey" size="small" variant="tonal">
                         <v-icon start size="16">mdi-cloud-off-outline</v-icon>
@@ -529,6 +549,17 @@ async function handleSignIn() {
 
 function handleSignOut() {
   googleDocs.signOut()
+}
+
+// 重新授權（token 過期時使用）
+async function handleReauthorize() {
+  isSigningIn.value = true
+  
+  try {
+    await googleDocs.signIn()
+  } finally {
+    isSigningIn.value = false
+  }
 }
 
 async function handleManualSync() {
