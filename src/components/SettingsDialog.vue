@@ -506,11 +506,17 @@ watch(isOpen, (open) => {
 // Watch for successful Google login to offer migration
 watch(() => googleDocs.isConnected.value, (isConnected, wasConnected) => {
   // Only trigger when user just connected (not on page load with existing session)
-  if (isConnected && !wasConnected && shouldOfferMigration.value) {
-    // Small delay to let the UI update
+  if (isConnected && !wasConnected) {
+    // 延長等待時間，讓系統有足夠時間搜尋現有的同步檔案
+    // 1. OAuth callback 後會搜尋現有檔案
+    // 2. 如果找到檔案，hasSyncFile 會變成 true
+    // 3. shouldOfferMigration 就會是 false
     setTimeout(() => {
-      showMigrationDialog.value = true
-    }, 500)
+      // 重新檢查是否需要 migration（因為搜尋可能已經完成）
+      if (shouldOfferMigration.value) {
+        showMigrationDialog.value = true
+      }
+    }, 2000)  // 給 2 秒時間讓搜尋完成
   }
 })
 
@@ -533,15 +539,8 @@ async function handleSignIn() {
   googleDocs.setClientId(clientIdInput.value)
   
   try {
-    const success = await googleDocs.signIn()
-    
-    // After successful sign-in, check if migration should be offered
-    if (success && shouldOfferMigration.value) {
-      // Small delay for UI to update
-      setTimeout(() => {
-        showMigrationDialog.value = true
-      }, 500)
-    }
+    // signIn() 會重定向到 Google，這個 Promise 不會 resolve
+    await googleDocs.signIn()
   } finally {
     isSigningIn.value = false
   }

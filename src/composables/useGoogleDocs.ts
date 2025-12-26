@@ -415,11 +415,24 @@ export function useGoogleDocs() {
                 // 立即儲存 token
                 accessToken.value = token
 
-                // 取得使用者資訊
-                fetchUserInfo(token).then(user => {
+                // 取得使用者資訊，然後搜尋現有的同步檔案
+                fetchUserInfo(token).then(async user => {
                     if (user) {
                         saveAuth(token, expiresIn, user)
                         console.log('[OAuth] Successfully logged in as:', user.email)
+
+                        // 如果沒有 syncFileId，嘗試搜尋現有的同步檔案
+                        if (!syncFileId.value) {
+                            try {
+                                const existingFileId = await findExistingSyncFile()
+                                if (existingFileId) {
+                                    console.log('[OAuth] Found existing sync file:', existingFileId)
+                                    saveSyncFileId(existingFileId)
+                                }
+                            } catch (e) {
+                                console.warn('[OAuth] Failed to search for existing sync file', e)
+                            }
+                        }
                     } else {
                         console.error('[OAuth] Failed to get user info')
                     }
