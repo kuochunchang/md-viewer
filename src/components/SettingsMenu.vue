@@ -90,6 +90,22 @@
       </v-card>
     </v-menu>
 
+    <!-- Settings Button -->
+    <v-tooltip location="bottom" text="設定">
+      <template #activator="{ props }">
+        <v-btn
+          icon
+          variant="text"
+          size="small"
+          class="settings-btn"
+          v-bind="props"
+          @click="openSettingsDialog"
+        >
+          <v-icon>mdi-cog-outline</v-icon>
+        </v-btn>
+      </template>
+    </v-tooltip>
+
     <!-- Help Button -->
     <v-tooltip location="bottom" text="Help">
       <template #activator="{ props }">
@@ -190,9 +206,11 @@ import { computed, ref, watch } from 'vue'
 import { useTheme } from 'vuetify'
 import { usePdfExport } from '../composables/usePdfExport'
 import { useTabsStore } from '../stores/tabsStore'
+import { useSettingsStore } from '../stores/settingsStore'
 
 const theme = useTheme()
 const tabsStore = useTabsStore()
+const settingsStore = useSettingsStore()
 
 // PDF Export
 const { isExporting, exportPreviewToPdf } = usePdfExport()
@@ -209,6 +227,11 @@ const fontSizePresets = [12, 14, 16, 18, 20]
 
 // Help dialog state
 const showHelpDialog = ref(false)
+
+// Open Settings Dialog
+function openSettingsDialog() {
+  settingsStore.openSettingsDialog()
+}
 
 // Watch for external font size changes
 watch(fontSize, (newValue) => {

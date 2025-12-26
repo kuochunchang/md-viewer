@@ -336,6 +336,75 @@ export const useTabsStore = defineStore('tabs', () => {
     return editingItemId.value === id
   }
 
+  // Load data from external source (e.g., cloud sync)
+  function loadFromData(data: StoredTabsData): boolean {
+    if (!data || !data.tabs || data.tabs.length === 0) {
+      return false
+    }
+
+    try {
+      // Load tabs with backward compatibility for folderId
+      tabs.value = data.tabs.map(t => ({
+        ...t,
+        folderId: t.folderId ?? null
+      }))
+
+      // Load folders (if exists)
+      if (data.folders && Array.isArray(data.folders)) {
+        folders.value = data.folders
+      } else {
+        folders.value = []
+      }
+
+      // Restore open tabs
+      if (data.openTabIds && Array.isArray(data.openTabIds)) {
+        openTabIds.value = data.openTabIds.filter(id => tabs.value.some(t => t.id === id))
+      } else {
+        openTabIds.value = tabs.value.map(t => t.id)
+      }
+
+      // Restore active tab
+      if (data.activeTabId && tabs.value.some(t => t.id === data.activeTabId)) {
+        activeTabId.value = data.activeTabId
+      } else {
+        activeTabId.value = openTabIds.value[0] || tabs.value[0]?.id || null
+      }
+
+      if (data.fontSize) {
+        fontSize.value = Math.max(10, Math.min(24, data.fontSize))
+      }
+
+      if (data.showEditor !== undefined) {
+        showEditor.value = data.showEditor
+      }
+
+      if (data.showSidebar !== undefined) {
+        showSidebar.value = data.showSidebar
+      }
+
+      // Save to local storage as well
+      saveToStore()
+
+      return true
+    } catch (error) {
+      console.error('Failed to load from external data:', error)
+      return false
+    }
+  }
+
+  // Get current data for export (e.g., cloud sync)
+  function getDataForExport(): StoredTabsData {
+    return {
+      tabs: tabs.value,
+      folders: folders.value,
+      activeTabId: activeTabId.value,
+      openTabIds: openTabIds.value,
+      fontSize: fontSize.value,
+      showSidebar: showSidebar.value,
+      showEditor: showEditor.value
+    }
+  }
+
   return {
     tabs,
     folders,
@@ -372,6 +441,8 @@ export const useTabsStore = defineStore('tabs', () => {
     initialize,
     saveToStore,
     loadFromStore,
+    loadFromData,
+    getDataForExport,
     startEditing,
     stopEditing,
     isEditing,
