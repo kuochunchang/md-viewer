@@ -107,7 +107,7 @@
         <!-- File name (editable) -->
         <input
           v-if="tabsStore.isEditing(file.id)"
-          ref="fileNameInputRef"
+          :ref="(el) => setFileInputRef(file.id, el as HTMLInputElement | null)"
           v-model="editingFileName"
           class="file-name-input"
           @blur="finishFileEditing"
@@ -168,7 +168,15 @@ const nameInputRef = ref<HTMLInputElement | null>(null)
 
 // File editing - uses global store state
 const editingFileName = ref('')
-const fileNameInputRef = ref<HTMLInputElement | null>(null)
+const fileInputRefs = ref<Map<string, HTMLInputElement | null>>(new Map())
+
+function setFileInputRef(id: string, el: HTMLInputElement | null) {
+  if (el) {
+    fileInputRefs.value.set(id, el)
+  } else {
+    fileInputRefs.value.delete(id)
+  }
+}
 
 // Drag state
 const isDragging = ref(false)
@@ -204,9 +212,15 @@ function cancelEditingFolder() {
 function startFileEditing(file: { id: string; name: string }) {
   tabsStore.startEditing(file.id, 'file')
   editingFileName.value = file.name
+  // Double nextTick to ensure DOM is fully rendered and ref is set
   nextTick(() => {
-    fileNameInputRef.value?.focus()
-    fileNameInputRef.value?.select()
+    nextTick(() => {
+      const inputEl = fileInputRefs.value.get(file.id)
+      if (inputEl) {
+        inputEl.focus()
+        inputEl.select()
+      }
+    })
   })
 }
 
@@ -510,7 +524,7 @@ function handleFileDragEnd() {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  cursor: default;
+  cursor: pointer;
 }
 
 .file-name-input {
