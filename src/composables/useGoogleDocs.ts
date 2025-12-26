@@ -176,7 +176,7 @@ export function useGoogleDocs() {
     // 改用頁面重定向（而非 popup）以避免跨來源問題
     async function signIn(): Promise<boolean> {
         if (!clientId.value) {
-            syncError.value = '請先設定 Google Client ID'
+            syncError.value = 'Please set Google Client ID first'
             return false
         }
 
@@ -207,7 +207,7 @@ export function useGoogleDocs() {
             return new Promise(() => { })
         } catch (error) {
             console.error('Sign in failed:', error)
-            syncError.value = '登入失敗: ' + (error as Error).message
+            syncError.value = 'Sign in failed: ' + (error as Error).message
             return false
         }
     }
@@ -244,7 +244,7 @@ export function useGoogleDocs() {
             const savedState = localStorage.getItem('oauth_state')
             if (state !== savedState) {
                 console.error('[OAuth] State mismatch!')
-                syncError.value = 'OAuth 狀態驗證失敗'
+                syncError.value = 'OAuth state validation failed'
                 localStorage.removeItem('oauth_pending')
                 localStorage.removeItem('oauth_state')
                 return false
@@ -279,7 +279,7 @@ export function useGoogleDocs() {
             }
         } catch (error) {
             console.error('[OAuth] Callback error:', error)
-            syncError.value = '處理登入回調時發生錯誤'
+            syncError.value = 'Error processing login callback'
             localStorage.removeItem('oauth_pending')
             localStorage.removeItem('oauth_state')
         }
@@ -308,7 +308,7 @@ export function useGoogleDocs() {
             }
         } catch (error) {
             console.error('Failed to fetch user info:', error)
-            syncError.value = '無法取得使用者資訊'
+            syncError.value = 'Failed to get user info'
             return null
         }
     }
@@ -324,7 +324,7 @@ export function useGoogleDocs() {
     // force: 是否強制覆蓋（忽略衝突）
     async function syncToGoogleDocs(data: object, force: boolean = false): Promise<'success' | 'conflict' | 'error'> {
         if (!accessToken.value) {
-            syncError.value = '未登入 Google'
+            syncError.value = 'Not signed in to Google'
             return 'error'
         }
 
@@ -372,7 +372,7 @@ export function useGoogleDocs() {
             return 'success'
         } catch (error) {
             console.error('Sync failed:', error)
-            syncError.value = '同步失敗: ' + (error as Error).message
+            syncError.value = 'Sync failed: ' + (error as Error).message
 
             // 如果是 token 過期，清除登入狀態
             if ((error as Error).message.includes('401')) {

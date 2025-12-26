@@ -10,7 +10,7 @@
       <v-card-title class="dialog-header d-flex align-center justify-space-between">
         <div class="d-flex align-center gap-2">
           <v-icon color="primary">mdi-cog</v-icon>
-          <span class="text-h6 font-weight-bold">設定</span>
+          <span class="text-h6 font-weight-bold">Settings</span>
         </div>
         <v-btn icon variant="text" size="small" @click="closeDialog">
           <v-icon>mdi-close</v-icon>
@@ -20,19 +20,19 @@
       <v-divider></v-divider>
 
       <v-card-text class="dialog-content pa-0">
-        <!-- 儲存設定區塊 -->
+        <!-- Storage Settings Section -->
         <div class="settings-section">
           <div class="section-header">
             <v-icon size="small" color="primary" class="mr-2">mdi-cloud-sync</v-icon>
-            <span class="section-title">資料儲存</span>
+            <span class="section-title">Data Storage</span>
           </div>
           
           <div class="section-content">
-            <!-- 儲存位置選擇 -->
+            <!-- Storage Provider Selection -->
             <div class="setting-item">
               <div class="setting-label">
-                <span class="setting-name">儲存位置</span>
-                <span class="setting-description">選擇您的資料要儲存在哪裡</span>
+                <span class="setting-name">Storage Location</span>
+                <span class="setting-description">Choose where to store your data</span>
               </div>
               <v-btn-toggle 
                 v-model="localSettings.provider" 
@@ -42,7 +42,7 @@
               >
                 <v-btn value="local" size="small" :color="localSettings.provider === 'local' ? 'primary' : undefined">
                   <v-icon start size="18">mdi-laptop</v-icon>
-                  本地
+                  Local
                 </v-btn>
                 <v-btn value="google" size="small" :color="localSettings.provider === 'google' ? 'primary' : undefined">
                   <v-icon start size="18">mdi-google-drive</v-icon>
@@ -54,10 +54,10 @@
             <!-- Google Drive 設定 -->
             <v-expand-transition>
               <div v-if="localSettings.provider === 'google'" class="google-settings">
-                <!-- 連線狀態 -->
+                <!-- Connection Status -->
                 <div class="setting-item connection-status">
                   <div class="setting-label">
-                    <span class="setting-name">連線狀態</span>
+                    <span class="setting-name">Connection Status</span>
                   </div>
                   <div class="status-indicator">
                     <template v-if="googleDocs.isConnected.value">
@@ -75,39 +75,39 @@
                         class="ml-2"
                         @click="handleSignOut"
                       >
-                        登出
+                        Sign Out
                       </v-btn>
                     </template>
                     <template v-else>
                       <v-chip color="grey" size="small" variant="tonal">
                         <v-icon start size="16">mdi-cloud-off-outline</v-icon>
-                        未連線
+                        Disconnected
                       </v-chip>
                     </template>
                   </div>
                 </div>
 
-                <!-- Google Client ID 設定 -->
+                <!-- Google Client ID Settings -->
                 <div class="setting-item flex-column" v-if="!googleDocs.isConnected.value">
                   <div class="setting-label w-100 mb-2">
                     <span class="setting-name">Google Client ID</span>
                     <span class="setting-description">
                       <a href="https://console.cloud.google.com/apis/credentials" target="_blank" class="text-primary">
-                        從 Google Cloud Console 取得
+                        Get from Google Cloud Console
                         <v-icon size="12">mdi-open-in-new</v-icon>
                       </a>
                     </span>
                   </div>
                   <v-text-field
                     v-model="clientIdInput"
-                    placeholder="輸入您的 Client ID"
+                    placeholder="Enter your Client ID"
                     variant="outlined"
                     density="compact"
                     hide-details
                     class="w-100 mb-2"
                   ></v-text-field>
                   
-                  <!-- Redirect URI 設定提示 -->
+                  <!-- Redirect URI Hint -->
                   <v-alert 
                     type="warning" 
                     variant="tonal" 
@@ -115,7 +115,7 @@
                     class="w-100 mt-2"
                   >
                     <div class="text-caption">
-                      <strong>重要：</strong>請在 Google Cloud Console 的 OAuth Client 設定中加入以下網址：
+                      <strong>Important:</strong> Please add the following URLs to your OAuth Client settings in Google Cloud Console:
                       <div class="mt-1">
                         <strong>Authorized JavaScript origins:</strong>
                         <code class="ml-1">{{ currentOrigin }}</code>
@@ -128,7 +128,7 @@
                   </v-alert>
                 </div>
 
-                <!-- 登入按鈕 -->
+                <!-- Sign In Button -->
                 <div class="setting-item" v-if="!googleDocs.isConnected.value">
                   <v-btn 
                     color="primary" 
@@ -139,16 +139,16 @@
                     block
                   >
                     <v-icon start>mdi-google</v-icon>
-                    連接 Google 帳號
+                    Connect Google Account
                   </v-btn>
                 </div>
 
-                <!-- 自動同步設定 -->
+                <!-- Auto Sync Settings -->
                 <template v-if="googleDocs.isConnected.value">
                   <div class="setting-item">
                     <div class="setting-label">
-                      <span class="setting-name">自動同步</span>
-                      <span class="setting-description">定時自動將資料同步到雲端</span>
+                      <span class="setting-name">Auto Sync</span>
+                      <span class="setting-description">Automatically sync data to cloud</span>
                     </div>
                     <v-switch
                       v-model="localSettings.autoSync"
@@ -161,8 +161,8 @@
                   <v-expand-transition>
                     <div v-if="localSettings.autoSync" class="setting-item">
                       <div class="setting-label">
-                        <span class="setting-name">同步間隔</span>
-                        <span class="setting-description">每隔多久自動同步一次</span>
+                        <span class="setting-name">Sync Interval</span>
+                        <span class="setting-description">How often to sync</span>
                       </div>
                       <v-select
                         v-model="localSettings.syncIntervalMinutes"
@@ -177,7 +177,7 @@
                     </div>
                   </v-expand-transition>
 
-                  <!-- 遷移提示 (尚未有雲端檔案時顯示) -->
+                  <!-- Migration Prompt (shown when cloud file doesn't exist) -->
                   <v-alert 
                     v-if="shouldOfferMigration && localDataStats.tabCount > 0"
                     type="info" 
@@ -189,7 +189,7 @@
                       <div class="d-flex align-center gap-2">
                         <v-icon size="18">mdi-database-arrow-up</v-icon>
                         <span class="text-caption">
-                          偵測到 {{ localDataStats.tabCount }} 個本地文件
+                          Detected {{ localDataStats.tabCount }} local files
                         </span>
                       </div>
                       <v-btn 
@@ -198,12 +198,12 @@
                         color="primary"
                         @click="showMigrationDialog = true"
                       >
-                        遷移到雲端
+                        Migrate to Cloud
                       </v-btn>
                     </div>
                   </v-alert>
 
-                  <!-- 手動同步按鈕 -->
+                  <!-- Manual Sync Buttons -->
                   <div class="setting-item sync-actions">
                     <v-btn 
                       color="primary" 
@@ -213,7 +213,7 @@
                       @click="handleManualSync"
                     >
                       <v-icon start size="18">mdi-cloud-upload</v-icon>
-                      立即同步到雲端
+                      Sync Now
                     </v-btn>
                     <v-btn 
                       color="secondary" 
@@ -224,17 +224,17 @@
                       @click="handleLoadFromCloud"
                     >
                       <v-icon start size="18">mdi-cloud-download</v-icon>
-                      從雲端載入
+                      Load from Cloud
                     </v-btn>
                   </div>
 
-                  <!-- 最後同步時間 -->
+                  <!-- Last Sync Time -->
                   <div v-if="googleDocs.syncStatus.value.lastSyncTime" class="last-sync-time">
                     <v-icon size="14" class="mr-1">mdi-clock-outline</v-icon>
-                    最後同步: {{ formatTime(googleDocs.syncStatus.value.lastSyncTime) }}
+                    Last synced: {{ formatTime(googleDocs.syncStatus.value.lastSyncTime) }}
                   </div>
 
-                  <!-- 同步錯誤 -->
+                  <!-- Sync Error -->
                   <v-alert 
                     v-if="googleDocs.syncStatus.value.error" 
                     type="error" 
@@ -248,7 +248,7 @@
               </div>
             </v-expand-transition>
 
-            <!-- 本地儲存說明 -->
+            <!-- Local Storage Warning -->
             <v-alert 
               v-if="localSettings.provider === 'local'" 
               type="info" 
@@ -257,8 +257,8 @@
               class="mt-3"
             >
               <p class="mb-0 text-caption">
-                資料儲存在瀏覽器的 <strong>localStorage</strong> 中。
-                清除瀏覽器資料會導致資料遺失。
+                Data is stored in your browser's <strong>localStorage</strong>.
+                Clearing browser data will result in data loss.
               </p>
             </v-alert>
           </div>
@@ -266,11 +266,11 @@
 
         <v-divider></v-divider>
 
-        <!-- 安全性說明 -->
+        <!-- Security Info -->
         <div class="settings-section">
           <div class="section-header">
             <v-icon size="small" color="primary" class="mr-2">mdi-shield-check</v-icon>
-            <span class="section-title">安全性</span>
+            <span class="section-title">Security</span>
           </div>
           
           <div class="section-content">
@@ -278,11 +278,11 @@
               <div class="d-flex align-start gap-2">
                 <v-icon size="20">mdi-lock-outline</v-icon>
                 <div>
-                  <p class="mb-1 font-weight-medium">您的資料安全</p>
+                  <p class="mb-1 font-weight-medium">Your Data is Secure</p>
                   <ul class="security-list text-caption">
-                    <li>所有登入資訊都只存在您的瀏覽器中</li>
-                    <li>伺服器不會儲存任何個人資訊或登入憑證</li>
-                    <li>Google Drive 中只會存取由本應用建立的檔案</li>
+                    <li>All login information is stored only in your browser</li>
+                    <li>No personal info or credentials are stored on our servers</li>
+                    <li>We only access files created by this application in your Google Drive</li>
                   </ul>
                 </div>
               </div>
@@ -296,17 +296,17 @@
       <!-- Footer Actions -->
       <v-card-actions class="dialog-actions pa-4">
         <v-btn variant="text" color="grey" @click="resetSettings">
-          重設為預設值
+          Reset to Defaults
         </v-btn>
         <v-spacer></v-spacer>
         <v-btn variant="flat" color="primary" @click="saveAndClose">
-          儲存設定
+          Save Settings
         </v-btn>
       </v-card-actions>
     </v-card>
   </v-dialog>
 
-  <!-- 資料遷移對話框 -->
+  <!-- Migration Dialog -->
   <v-dialog 
     v-model="showMigrationDialog" 
     max-width="450" 
@@ -315,7 +315,7 @@
     <v-card class="migration-dialog-card">
       <v-card-title class="dialog-header d-flex align-center gap-2">
         <v-icon color="primary">mdi-database-arrow-up</v-icon>
-        <span class="text-h6 font-weight-bold">資料遷移</span>
+        <span class="text-h6 font-weight-bold">Data Migration</span>
       </v-card-title>
 
       <v-divider></v-divider>
@@ -325,23 +325,23 @@
           <v-alert type="info" variant="tonal" density="compact" class="mb-4">
             <div class="d-flex align-center gap-2">
               <v-icon>mdi-information</v-icon>
-              <span class="font-weight-medium">偵測到本地資料</span>
+              <span class="font-weight-medium">Local Data Detected</span>
             </div>
           </v-alert>
 
           <p class="text-body-2 mb-4">
-            您的瀏覽器中已有 <strong>{{ localDataStats.tabCount }} 個文件</strong> 
-            <span v-if="localDataStats.folderCount > 0">和 <strong>{{ localDataStats.folderCount }} 個資料夾</strong></span>。
+            Your browser has <strong>{{ localDataStats.tabCount }} files</strong> 
+            <span v-if="localDataStats.folderCount > 0">and <strong>{{ localDataStats.folderCount }} folders</strong></span>.
           </p>
 
           <p class="text-body-2 mb-4">
-            是否要將這些資料遷移到 Google Drive？
+            Would you like to migrate this data to Google Drive?
           </p>
 
           <v-alert type="warning" variant="tonal" density="compact" class="mb-0">
             <p class="text-caption mb-0">
-              <strong>注意：</strong>遷移後，您的資料將同時存在本地和雲端。
-              未來的變更將根據您的設定同步到選定的儲存位置。
+              <strong>Note:</strong> After migration, your data will exist both locally and in the cloud.
+              Future changes will sync based on your storage settings.
             </p>
           </v-alert>
         </div>
@@ -355,7 +355,7 @@
           color="grey"
           @click="skipMigration"
         >
-          暫時跳過
+          Skip
         </v-btn>
         <v-spacer></v-spacer>
         <v-btn 
@@ -365,13 +365,13 @@
           @click="performMigration"
         >
           <v-icon start>mdi-cloud-upload</v-icon>
-          開始遷移
+          Start Migration
         </v-btn>
       </v-card-actions>
     </v-card>
   </v-dialog>
 
-  <!-- 遷移成功提示 -->
+  <!-- Migration Success Snackbar -->
   <v-snackbar 
     v-model="showMigrationSuccess" 
     color="success" 
@@ -380,11 +380,11 @@
   >
     <div class="d-flex align-center gap-2">
       <v-icon>mdi-check-circle</v-icon>
-      <span>資料已成功遷移到 Google Drive！</span>
+      <span>Data successfully migrated to Google Drive!</span>
     </div>
   </v-snackbar>
 
-  <!-- 遷移失敗提示 -->
+  <!-- Migration Error Snackbar -->
   <v-snackbar 
     v-model="showMigrationError" 
     color="error" 
@@ -393,25 +393,25 @@
   >
     <div class="d-flex align-center gap-2">
       <v-icon>mdi-alert-circle</v-icon>
-      <span>資料遷移失敗：{{ migrationErrorMessage }}</span>
+      <span>Migration failed: {{ migrationErrorMessage }}</span>
     </div>
   </v-snackbar>
 
-  <!-- Google Drive 衝突提示對話框 -->
+  <!-- Conflict Dialog -->
   <v-dialog v-model="showConflictDialog" max-width="450">
     <v-card>
       <v-card-title class="text-h6 bg-warning text-white">
         <v-icon start icon="mdi-alert" color="white"></v-icon>
-        偵測到同步衝突
+        Sync Conflict Detected
       </v-card-title>
       <v-card-text class="pt-4">
-        <p class="mb-2">雲端上的檔案比您目前的版本還要新，這表示可能在其他裝置上有進行編輯。</p>
-        <p class="text-error font-weight-bold">如果您繼續同步，將會覆蓋雲端上的最新版本！</p>
+        <p class="mb-2">The cloud file is newer than your local version. This means it may have been edited on another device.</p>
+        <p class="text-error font-weight-bold">If you continue, you will overwrite the cloud version!</p>
       </v-card-text>
       <v-card-actions>
         <v-spacer></v-spacer>
-        <v-btn variant="text" @click="showConflictDialog = false">取消</v-btn>
-        <v-btn color="warning" @click="confirmForceSync">強制覆蓋</v-btn>
+        <v-btn variant="text" @click="showConflictDialog = false">Cancel</v-btn>
+        <v-btn color="warning" @click="confirmForceSync">Force Overwrite</v-btn>
       </v-card-actions>
     </v-card>
   </v-dialog>
