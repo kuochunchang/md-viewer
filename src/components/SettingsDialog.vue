@@ -396,6 +396,25 @@
       <span>資料遷移失敗：{{ migrationErrorMessage }}</span>
     </div>
   </v-snackbar>
+
+  <!-- Google Drive 衝突提示對話框 -->
+  <v-dialog v-model="showConflictDialog" max-width="450">
+    <v-card>
+      <v-card-title class="text-h6 bg-warning text-white">
+        <v-icon start icon="mdi-alert" color="white"></v-icon>
+        偵測到同步衝突
+      </v-card-title>
+      <v-card-text class="pt-4">
+        <p class="mb-2">雲端上的檔案比您目前的版本還要新，這表示可能在其他裝置上有進行編輯。</p>
+        <p class="text-error font-weight-bold">如果您繼續同步，將會覆蓋雲端上的最新版本！</p>
+      </v-card-text>
+      <v-card-actions>
+        <v-spacer></v-spacer>
+        <v-btn variant="text" @click="showConflictDialog = false">取消</v-btn>
+        <v-btn color="warning" @click="confirmForceSync">強制覆蓋</v-btn>
+      </v-card-actions>
+    </v-card>
+  </v-dialog>
 </template>
 
 <script setup lang="ts">
@@ -431,6 +450,7 @@ const isMigrating = ref(false)
 const showMigrationSuccess = ref(false)
 const showMigrationError = ref(false)
 const migrationErrorMessage = ref('')
+const showConflictDialog = ref(false) // Conflict dialog state
 
 // Local data stats for migration dialog
 const localDataStats = computed(() => ({
@@ -513,7 +533,19 @@ function handleSignOut() {
 
 async function handleManualSync() {
   const data = tabsStore.getDataForExport()
-  await googleDocs.syncToGoogleDocs(data)
+  // 嘗試同步（不強制覆蓋）
+  const result = await googleDocs.syncToGoogleDocs(data, false)
+  
+  if (result === 'conflict') {
+    showConflictDialog.value = true
+  }
+}
+
+async function confirmForceSync() {
+  showConflictDialog.value = false
+  // 強制同步
+  const data = tabsStore.getDataForExport()
+  await googleDocs.syncToGoogleDocs(data, true)
 }
 
 async function handleLoadFromCloud() {

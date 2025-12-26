@@ -45,11 +45,31 @@ const accessToken = ref<string | null>(null)
 const userInfo = ref<GoogleUserInfo | null>(null)
 const syncFileId = ref<string | null>(null)
 const isSyncing = ref(false)
+const lastCloudModifiedTime = ref<string | null>(null) // 上次同步時，雲端檔案的修改時間
 const lastSyncTime = ref<number | null>(null)
 const syncError = ref<string | null>(null)
 const clientId = ref<string>(GOOGLE_CLIENT_ID)
+// ... (existing code)
 
-// 初始化時從 localStorage 載入
+// 檢查雲端檔案狀態
+async function checkCloudFileStatus(fileId: string): Promise<{ modifiedTime: string }> {
+    const response = await fetch(
+        `https://www.googleapis.com/drive/v3/files/${fileId}?fields=modifiedTime`,
+        {
+            headers: {
+                'Authorization': `Bearer ${accessToken.value}`
+            }
+        }
+    )
+
+    if (!response.ok) {
+        throw new Error(`Failed to check file status: ${response.status}`)
+    }
+
+    return await response.json()
+}
+
+
 function loadStoredAuth() {
     try {
         const storedToken = localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN)
@@ -129,6 +149,17 @@ export function useGoogleDocs() {
     // 初始化 - 載入已存的登入資訊
     function initialize() {
         loadStoredAuth()
+
+        // 如果有檔案，嘗試取得其最新狀態
+        if (syncFileId.value && accessToken.value) {
+            checkCloudFileStatus(syncFileId.value)
+                .then(status => {
+                    lastCloudModifiedTime.value = status.modifiedTime
+                })
+                .catch(e => {
+                    console.warn('[Sync] Failed to check initial cloud file status', e)
+                })
+        }
     }
 
     // 設定 Client ID
@@ -290,10 +321,11 @@ export function useGoogleDocs() {
     }
 
     // 建立或更新 Google Doc
-    async function syncToGoogleDocs(data: object): Promise<boolean> {
+    // force: 是否強制覆蓋（忽略衝突）
+    async function syncToGoogleDocs(data: object, force: boolean = false): Promise<'success' | 'conflict' | 'error'> {
         if (!accessToken.value) {
             syncError.value = '未登入 Google'
-            return false
+            return 'error'
         }
 
         isSyncing.value = true
@@ -303,18 +335,41 @@ export function useGoogleDocs() {
             const content = JSON.stringify(data, null, 2)
 
             if (syncFileId.value) {
+                // 檢查衝突
+                if (!force) {
+                    try {
+                        const status = await checkCloudFileStatus(syncFileId.value)
+                        // 如果雲端時間比我們記錄的還新，表示有其他變更
+                        // 注意：這裡簡單用字串比較 ISO 時間，Google Drive 時間格式是 ISO 8601
+                        if (lastCloudModifiedTime.value && status.modifiedTime > lastCloudModifiedTime.value) {
+                            console.warn('Conflict detected: remote file is newer')
+                            return 'conflict'
+                        }
+                    } catch (e) {
+                        console.warn('Failed to check cloud status, proceeding with caution', e)
+                    }
+                }
+
                 // 更新現有檔案
-                await updateGoogleDoc(syncFileId.value, content)
+                const updatedMetadata = await updateGoogleDoc(syncFileId.value, content)
+                lastCloudModifiedTime.value = updatedMetadata.modifiedTime
             } else {
                 // 建立新檔案
                 const fileId = await createGoogleDoc(content)
                 if (fileId) {
                     saveSyncFileId(fileId)
+                    // 剛建立的檔案，取得其時間作為基準
+                    try {
+                        const status = await checkCloudFileStatus(fileId)
+                        lastCloudModifiedTime.value = status.modifiedTime
+                    } catch (e) {
+                        console.warn('Failed to get initial file time', e)
+                    }
                 }
             }
 
             lastSyncTime.value = Date.now()
-            return true
+            return 'success'
         } catch (error) {
             console.error('Sync failed:', error)
             syncError.value = '同步失敗: ' + (error as Error).message
@@ -324,7 +379,7 @@ export function useGoogleDocs() {
                 clearStoredAuth()
             }
 
-            return false
+            return 'error'
         } finally {
             isSyncing.value = false
         }
@@ -340,8 +395,20 @@ export function useGoogleDocs() {
         syncError.value = null
 
         try {
+            // 同時取得內容和 metadata
+            // 注意：getGoogleDocContent 只回傳內容，我們需要另外取得時間，或修改它
+            // 這裡為了簡單，先分兩次呼叫，雖然稍微慢一點
             const content = await getGoogleDocContent(syncFileId.value)
+
+            try {
+                const status = await checkCloudFileStatus(syncFileId.value)
+                lastCloudModifiedTime.value = status.modifiedTime
+            } catch (e) {
+                console.warn('Failed to update cloud modified time after load', e)
+            }
+
             if (content) {
+                lastSyncTime.value = Date.now()
                 return JSON.parse(content)
             }
             return null
@@ -390,9 +457,9 @@ export function useGoogleDocs() {
     }
 
     // 更新 Google Doc
-    async function updateGoogleDoc(fileId: string, content: string): Promise<void> {
+    async function updateGoogleDoc(fileId: string, content: string): Promise<{ id: string, modifiedTime: string }> {
         const response = await fetch(
-            `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`,
+            `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media&fields=id,modifiedTime`,
             {
                 method: 'PATCH',
                 headers: {
@@ -407,6 +474,8 @@ export function useGoogleDocs() {
             const error = await response.text()
             throw new Error(`Failed to update file: ${response.status} ${error}`)
         }
+
+        return await response.json()
     }
 
     // 取得 Google Doc 內容

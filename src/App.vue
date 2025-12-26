@@ -179,9 +179,15 @@ function setupAutoSync() {
         if (hasDataChanged()) {
           console.log('[AutoSync] Data changed, syncing...')
           const data = tabsStore.getDataForExport()
-          const success = await googleDocs.syncToGoogleDocs(data)
-          if (success) {
+          // 自動同步時不強制覆蓋，遇到衝突則略過
+          const result = await googleDocs.syncToGoogleDocs(data, false)
+          
+          if (result === 'success') {
             markAsSynced()
+            console.log('[AutoSync] Sync successful')
+          } else if (result === 'conflict') {
+            console.warn('[AutoSync] Conflict detected, skipping sync to protect remote data')
+            // TODO: 可以在 UI 顯示一個小警告icon
           }
         } else {
           console.log('[AutoSync] No changes, skipping sync')
