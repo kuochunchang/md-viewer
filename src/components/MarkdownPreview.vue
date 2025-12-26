@@ -1,15 +1,30 @@
 <template>
-  <div
-    ref="containerRef"
-    class="markdown-preview"
-    :style="{ fontSize: fontSize + 'px' }"
-    @scroll="handleScroll"
-  >
+  <div class="markdown-preview-wrapper">
+    <!-- Copy Button -->
+    <v-btn
+      icon
+      variant="text"
+      size="small"
+      class="copy-btn"
+      :title="copied ? 'Copied!' : 'Copy for Google Docs'"
+      :color="copied ? 'success' : undefined"
+      @click="copyToClipboard"
+    >
+      <v-icon size="18">{{ copied ? 'mdi-check' : 'mdi-content-copy' }}</v-icon>
+    </v-btn>
+    
     <div
-      ref="previewContentRef"
-      class="preview-content"
-      v-html="renderedHtml"
-    ></div>
+      ref="containerRef"
+      class="markdown-preview"
+      :style="{ fontSize: fontSize + 'px' }"
+      @scroll="handleScroll"
+    >
+      <div
+        ref="previewContentRef"
+        class="preview-content"
+        v-html="renderedHtml"
+      ></div>
+    </div>
   </div>
 </template>
 
@@ -39,6 +54,31 @@ const { renderAllMermaid } = useMermaid()
 
 // Reference to preview content container
 const previewContentRef = ref<HTMLElement | null>(null)
+
+// Copy to clipboard functionality
+const copied = ref(false)
+
+const copyToClipboard = async () => {
+  try {
+    const htmlContent = previewContentRef.value?.innerHTML || ''
+    
+    // Create a ClipboardItem with HTML content so it can be pasted
+    // into Google Docs with proper formatting preserved
+    const blob = new Blob([htmlContent], { type: 'text/html' })
+    const clipboardItem = new ClipboardItem({
+      'text/html': blob,
+      'text/plain': new Blob([previewContentRef.value?.innerText || ''], { type: 'text/plain' })
+    })
+    
+    await navigator.clipboard.write([clipboardItem])
+    copied.value = true
+    setTimeout(() => {
+      copied.value = false
+    }, 2000)
+  } catch (err) {
+    console.error('Failed to copy:', err)
+  }
+}
 
 // Debounce: delay 300ms to update content, optimizing performance for fast typing
 const debouncedUpdate = debounce((newContent: string) => {
@@ -112,6 +152,26 @@ defineExpose({
 
 <style scoped lang="scss">
 @import '../styles/preview.scss';
+
+.markdown-preview-wrapper {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.copy-btn {
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  z-index: 10;
+  opacity: 0.6;
+  transition: opacity 0.2s ease;
+  background-color: var(--bg-surface);
+  
+  &:hover {
+    opacity: 1;
+  }
+}
 
 .markdown-preview {
   width: 100%;

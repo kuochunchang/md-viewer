@@ -1,5 +1,18 @@
 <template>
   <div class="markdown-editor">
+    <!-- Copy Button -->
+    <v-btn
+      icon
+      variant="text"
+      size="small"
+      class="copy-btn"
+      :title="copied ? 'Copied!' : 'Copy Markdown'"
+      :color="copied ? 'success' : undefined"
+      @click="copyToClipboard"
+    >
+      <v-icon size="18">{{ copied ? 'mdi-check' : 'mdi-content-copy' }}</v-icon>
+    </v-btn>
+    
     <textarea
       ref="textareaRef"
       v-model="localContent"
@@ -31,6 +44,21 @@ const emit = defineEmits<{
 
 const textareaRef = ref<HTMLTextAreaElement | null>(null)
 const localContent = ref(props.modelValue)
+
+// Copy to clipboard functionality
+const copied = ref(false)
+
+const copyToClipboard = async () => {
+  try {
+    await navigator.clipboard.writeText(localContent.value)
+    copied.value = true
+    setTimeout(() => {
+      copied.value = false
+    }, 2000)
+  } catch (err) {
+    console.error('Failed to copy:', err)
+  }
+}
 
 // Listen to external content changes
 watch(() => props.modelValue, (newValue) => {
@@ -72,10 +100,25 @@ defineExpose({
 
 <style scoped lang="scss">
 .markdown-editor {
+  position: relative;
   width: 100%;
   height: 100%;
   display: flex;
   flex-direction: column;
+}
+
+.copy-btn {
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  z-index: 10;
+  opacity: 0.6;
+  transition: opacity 0.2s ease;
+  background-color: var(--bg-surface);
+  
+  &:hover {
+    opacity: 1;
+  }
 }
 
 .editor-textarea {
