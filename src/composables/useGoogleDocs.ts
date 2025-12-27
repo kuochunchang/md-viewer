@@ -33,8 +33,8 @@ const STORAGE_KEYS = {
     CLIENT_ID: 'md-viewer-google-client-id'
 }
 
-// 資料夾名稱常數
-const SYNC_FOLDER_NAME = 'MD-Viewer-Data'
+// 資料夾名稱（包含 hostname 以區分不同環境）
+const getSyncFolderName = () => `MD-Viewer-Data [${getHostname()}]`
 const BACKUP_FOLDER_NAME = 'backups'
 const DATA_FILE_NAME = 'data.json'
 
@@ -832,7 +832,7 @@ export function useGoogleDocs() {
         // 取得或建立主資料夾
         let mainFolderId = syncFolderId.value
         if (!mainFolderId) {
-            mainFolderId = await findOrCreateFolder(SYNC_FOLDER_NAME)
+            mainFolderId = await findOrCreateFolder(getSyncFolderName())
             saveSyncFolderId(mainFolderId)
             console.log('[Sync] Created/found main folder:', mainFolderId)
         }
