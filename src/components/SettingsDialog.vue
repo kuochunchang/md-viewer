@@ -324,6 +324,32 @@
                     </div>
                   </v-alert>
 
+                  <!-- Conflict Alert -->
+                  <v-alert 
+                    v-if="googleDocs.hasConflict.value"
+                    type="warning" 
+                    variant="tonal" 
+                    density="compact"
+                    class="mb-3"
+                  >
+                    <div class="d-flex align-center justify-space-between flex-wrap gap-2">
+                      <div class="d-flex align-center gap-2">
+                        <v-icon size="18">mdi-sync-alert</v-icon>
+                        <span class="text-caption">
+                          Cloud has been updated on another device
+                        </span>
+                      </div>
+                      <v-btn 
+                        size="x-small" 
+                        variant="flat" 
+                        color="warning"
+                        @click="showConflictDialog = true"
+                      >
+                        Resolve
+                      </v-btn>
+                    </div>
+                  </v-alert>
+
                   <!-- Manual Sync Buttons -->
                   <div class="setting-item sync-actions">
                     <v-btn 
@@ -331,6 +357,7 @@
                       variant="tonal"
                       size="small"
                       :loading="googleDocs.syncStatus.value.isSyncing"
+                      :disabled="googleDocs.hasConflict.value"
                       @click="handleManualSync"
                     >
                       <v-icon start size="18">mdi-cloud-upload</v-icon>
@@ -519,20 +546,46 @@
   </v-snackbar>
 
   <!-- Conflict Dialog -->
-  <v-dialog v-model="showConflictDialog" max-width="450">
+  <v-dialog v-model="showConflictDialog" max-width="480" persistent>
     <v-card>
-      <v-card-title class="text-h6 bg-warning text-white">
-        <v-icon start icon="mdi-alert" color="white"></v-icon>
+      <v-card-title class="text-h6 bg-warning text-white d-flex align-center gap-2">
+        <v-icon icon="mdi-sync-alert" color="white"></v-icon>
         Sync Conflict Detected
       </v-card-title>
       <v-card-text class="pt-4">
-        <p class="mb-2">The cloud file is newer than your local version. This means it may have been edited on another device.</p>
-        <p class="text-error font-weight-bold">If you continue, you will overwrite the cloud version!</p>
+        <v-alert type="warning" variant="tonal" density="compact" class="mb-4">
+          <p class="mb-0 text-body-2">
+            The cloud file has been modified by another device since your last sync.
+          </p>
+        </v-alert>
+        
+        <p class="text-body-2 mb-3">Please choose how to resolve this conflict:</p>
+        
+        <div class="conflict-options">
+          <v-card variant="outlined" class="mb-2 conflict-option" @click="handleLoadFromCloudConflict">
+            <v-card-text class="d-flex align-center gap-3 py-3">
+              <v-icon color="primary" size="24">mdi-cloud-download</v-icon>
+              <div>
+                <div class="font-weight-medium">Load from Cloud</div>
+                <div class="text-caption text-grey">Replace local data with cloud version</div>
+              </div>
+            </v-card-text>
+          </v-card>
+          
+          <v-card variant="outlined" class="mb-2 conflict-option" @click="confirmForceSync">
+            <v-card-text class="d-flex align-center gap-3 py-3">
+              <v-icon color="warning" size="24">mdi-cloud-upload</v-icon>
+              <div>
+                <div class="font-weight-medium">Overwrite Cloud</div>
+                <div class="text-caption text-grey">Push local data to cloud (creates backup first)</div>
+              </div>
+            </v-card-text>
+          </v-card>
+        </div>
       </v-card-text>
-      <v-card-actions>
+      <v-card-actions class="pa-4 pt-0">
         <v-spacer></v-spacer>
-        <v-btn variant="text" @click="showConflictDialog = false">Cancel</v-btn>
-        <v-btn color="warning" @click="confirmForceSync">Force Overwrite</v-btn>
+        <v-btn variant="text" color="grey" @click="cancelConflict">Cancel</v-btn>
       </v-card-actions>
     </v-card>
   </v-dialog>
@@ -710,14 +763,41 @@ async function handleManualSync() {
 
 async function confirmForceSync() {
   showConflictDialog.value = false
-  // 強制同步
+  // 使用衝突解決方法（會先備份再覆蓋）
   const data = tabsStore.getDataForExport()
-  await googleDocs.syncToGoogleDocsWithBackup(
+  const result = await googleDocs.resolveConflictWithLocal(
     data,
     settingsStore.settings.backupEnabled,
-    settingsStore.settings.backupRetentionDays,
-    true
+    settingsStore.settings.backupRetentionDays
   )
+  
+  if (result === 'success') {
+    console.log('Successfully resolved conflict by overwriting cloud')
+    // 刷新備份列表
+    if (settingsStore.settings.backupEnabled) {
+      await googleDocs.refreshBackupList()
+    }
+  }
+}
+
+// 衝突處理：選擇載入雲端資料
+async function handleLoadFromCloudConflict() {
+  showConflictDialog.value = false
+  const data = await googleDocs.resolveConflictWithCloud()
+  if (data && typeof data === 'object') {
+    const loaded = tabsStore.loadFromData(data as any)
+    if (loaded) {
+      console.log('Successfully resolved conflict by loading from cloud')
+    } else {
+      console.error('Failed to load data from cloud during conflict resolution')
+    }
+  }
+}
+
+// 取消衝突處理（保持暫停狀態）
+function cancelConflict() {
+  showConflictDialog.value = false
+  // 衝突狀態保留，自動同步仍然暫停
 }
 
 async function handleLoadFromCloud() {
@@ -1030,6 +1110,19 @@ async function performMigration() {
     
     &:last-child {
       border-bottom: none;
+    }
+  }
+}
+
+// Conflict dialog styles
+.conflict-options {
+  .conflict-option {
+    cursor: pointer;
+    transition: all 0.2s ease;
+    
+    &:hover {
+      border-color: var(--v-theme-primary);
+      background: rgba(var(--v-theme-primary), 0.04);
     }
   }
 }

@@ -70,6 +70,11 @@ const lastCloudModifiedTime = ref<string | null>(null) // 上次同步時，雲�
 const lastSyncTime = ref<number | null>(null)
 const syncError = ref<string | null>(null)
 const clientId = ref<string>(GOOGLE_CLIENT_ID)
+
+// 衝突相關狀態
+const hasConflict = ref(false)  // 是否有未解決的衝突
+const conflictCloudTime = ref<string | null>(null)  // 衝突時雲端的修改時間
+const autoSyncPaused = ref(false)  // 自動同步是否暫停（因衝突）
 // ... (existing code)
 
 // 檢查雲端檔案狀態
@@ -1202,6 +1207,94 @@ export function useGoogleDocs() {
         return await listBackupFiles()
     }
 
+    // ===== 衝突處理函數 =====
+
+    // 檢查雲端是否有更新（用於啟動時或自動同步前）
+    async function checkForCloudUpdates(): Promise<'up-to-date' | 'cloud-newer' | 'no-cloud-file' | 'error'> {
+        if (!accessToken.value) return 'error'
+
+        try {
+            // 確保資料夾結構存在
+            const folders = await ensureFolderStructure()
+
+            // 搜尋現有的資料檔案
+            const existingFile = await findFileInFolder(DATA_FILE_NAME, folders.syncFolderId)
+
+            if (!existingFile) {
+                return 'no-cloud-file'
+            }
+
+            // 檢查雲端檔案的修改時間
+            const cloudStatus = await checkCloudFileStatus(existingFile.id)
+
+            // 如果我們沒有記錄上次同步時間，視為需要檢查
+            if (!lastCloudModifiedTime.value) {
+                // 首次同步，記錄時間但不算衝突
+                lastCloudModifiedTime.value = cloudStatus.modifiedTime
+                return 'up-to-date'
+            }
+
+            // 比較時間
+            if (cloudStatus.modifiedTime > lastCloudModifiedTime.value) {
+                // 雲端較新
+                hasConflict.value = true
+                conflictCloudTime.value = cloudStatus.modifiedTime
+                autoSyncPaused.value = true
+                return 'cloud-newer'
+            }
+
+            return 'up-to-date'
+        } catch (error) {
+            console.error('[Sync] Error checking for cloud updates:', error)
+            return 'error'
+        }
+    }
+
+    // 解決衝突：選擇載入雲端資料
+    async function resolveConflictWithCloud(): Promise<object | null> {
+        const data = await loadFromGoogleDocs()
+        if (data) {
+            clearConflict()
+        }
+        return data
+    }
+
+    // 解決衝突：選擇覆蓋雲端（強制同步）
+    async function resolveConflictWithLocal(data: object, backupEnabled: boolean, retentionDays: number): Promise<'success' | 'error'> {
+        const result = await syncToGoogleDocsWithBackup(data, backupEnabled, retentionDays, true)
+        if (result === 'success') {
+            clearConflict()
+            return 'success'
+        }
+        return 'error'
+    }
+
+    // 清除衝突狀態
+    function clearConflict() {
+        hasConflict.value = false
+        conflictCloudTime.value = null
+        autoSyncPaused.value = false
+    }
+
+    // 自動同步專用（有衝突時靜默跳過）
+    async function autoSync(data: object, backupEnabled: boolean, retentionDays: number): Promise<'success' | 'conflict' | 'paused' | 'error'> {
+        // 如果已經暫停，不執行
+        if (autoSyncPaused.value) {
+            return 'paused'
+        }
+
+        // 先檢查是否有衝突
+        const cloudStatus = await checkForCloudUpdates()
+        if (cloudStatus === 'cloud-newer') {
+            // 有衝突，暫停自動同步但不跳出對話框
+            console.log('[AutoSync] Conflict detected, pausing auto-sync')
+            return 'conflict'
+        }
+
+        // 沒有衝突，正常同步
+        return await syncToGoogleDocsWithBackup(data, backupEnabled, retentionDays, false)
+    }
+
     return {
         // State
         isConnected,
@@ -1211,6 +1304,10 @@ export function useGoogleDocs() {
         clientId: computed(() => clientId.value),
         hasSyncFile: computed(() => !!syncFileId.value),
         backupFiles: computed(() => backupFiles.value),
+        // Conflict state
+        hasConflict: computed(() => hasConflict.value),
+        autoSyncPaused: computed(() => autoSyncPaused.value),
+        conflictCloudTime: computed(() => conflictCloudTime.value),
 
         // Actions
         initialize,
@@ -1227,6 +1324,12 @@ export function useGoogleDocs() {
         listBackupFiles,
         restoreFromBackup,
         cleanupOldBackups,
-        refreshBackupList
+        refreshBackupList,
+        // Conflict actions
+        checkForCloudUpdates,
+        resolveConflictWithCloud,
+        resolveConflictWithLocal,
+        clearConflict,
+        autoSync
     }
 }
