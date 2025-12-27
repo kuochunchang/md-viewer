@@ -1207,6 +1207,81 @@ export function useGoogleDocs() {
         return await listBackupFiles()
     }
 
+    // 手動建立備份（會先檢查衝突）
+    async function createManualBackup(): Promise<'success' | 'conflict' | 'no-data' | 'error'> {
+        if (!accessToken.value) {
+            syncError.value = 'Not signed in to Google'
+            return 'error'
+        }
+
+        isSyncing.value = true
+        syncError.value = null
+
+        try {
+            // 確保資料夾結構存在
+            const folders = await ensureFolderStructure()
+
+            // 檢查是否有雲端衝突
+            const existingFile = await findFileInFolder(DATA_FILE_NAME, folders.syncFolderId)
+
+            if (!existingFile) {
+                // 雲端沒有資料檔案，無法備份
+                syncError.value = 'No cloud data to backup. Please sync first.'
+                return 'no-data'
+            }
+
+            // 檢查雲端是否有更新（衝突檢測）
+            const cloudStatus = await checkCloudFileStatus(existingFile.id)
+            if (lastCloudModifiedTime.value && cloudStatus.modifiedTime > lastCloudModifiedTime.value) {
+                // 雲端較新，有衝突
+                hasConflict.value = true
+                conflictCloudTime.value = cloudStatus.modifiedTime
+                autoSyncPaused.value = true
+                return 'conflict'
+            }
+
+            // 建立備份（使用帶時間戳的名稱，允許同一天多次備份）
+            const now = new Date()
+            const timestamp = now.toISOString().replace(/[:.]/g, '-').slice(0, 19)
+            const backupFileName = `backup-${timestamp}.json`
+
+            // 複製檔案到備份資料夾
+            const response = await fetch(
+                `https://www.googleapis.com/drive/v3/files/${existingFile.id}/copy`,
+                {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${accessToken.value}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        name: backupFileName,
+                        parents: [folders.backupFolderId]
+                    })
+                }
+            )
+
+            if (!response.ok) {
+                const error = await response.text()
+                throw new Error(`Failed to create backup: ${response.status} ${error}`)
+            }
+
+            const result = await response.json()
+            console.log('[Backup] Created manual backup:', result.id, backupFileName)
+
+            // 刷新備份列表
+            await listBackupFiles()
+
+            return 'success'
+        } catch (error) {
+            console.error('[Backup] Manual backup failed:', error)
+            syncError.value = 'Backup failed: ' + (error as Error).message
+            return 'error'
+        } finally {
+            isSyncing.value = false
+        }
+    }
+
     // ===== 衝突處理函數 =====
 
     // 檢查雲端是否有更新（用於啟動時或自動同步前）
@@ -1325,6 +1400,7 @@ export function useGoogleDocs() {
         restoreFromBackup,
         cleanupOldBackups,
         refreshBackupList,
+        createManualBackup,
         // Conflict actions
         checkForCloudUpdates,
         resolveConflictWithCloud,

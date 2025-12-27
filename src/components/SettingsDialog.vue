@@ -374,6 +374,17 @@
                       <v-icon start size="18">mdi-cloud-download</v-icon>
                       Load from Cloud
                     </v-btn>
+                    <v-btn 
+                      color="success" 
+                      variant="tonal"
+                      size="small"
+                      :loading="isCreatingBackup"
+                      :disabled="!googleDocs.hasSyncFile.value || googleDocs.hasConflict.value"
+                      @click="handleManualBackup"
+                    >
+                      <v-icon start size="18">mdi-backup-restore</v-icon>
+                      Backup Now
+                    </v-btn>
                   </div>
 
                   <!-- Last Sync Time -->
@@ -545,6 +556,32 @@
     </div>
   </v-snackbar>
 
+  <!-- Backup Success Snackbar -->
+  <v-snackbar 
+    v-model="showBackupSuccess" 
+    color="success" 
+    :timeout="4000"
+    location="top"
+  >
+    <div class="d-flex align-center gap-2">
+      <v-icon>mdi-backup-restore</v-icon>
+      <span>Backup created successfully!</span>
+    </div>
+  </v-snackbar>
+
+  <!-- Backup Error Snackbar -->
+  <v-snackbar 
+    v-model="showBackupError" 
+    color="error" 
+    :timeout="5000"
+    location="top"
+  >
+    <div class="d-flex align-center gap-2">
+      <v-icon>mdi-alert-circle</v-icon>
+      <span>Backup failed: {{ backupErrorMessage }}</span>
+    </div>
+  </v-snackbar>
+
   <!-- Conflict Dialog -->
   <v-dialog v-model="showConflictDialog" max-width="480" persistent>
     <v-card>
@@ -625,6 +662,12 @@ const showMigrationSuccess = ref(false)
 const showMigrationError = ref(false)
 const migrationErrorMessage = ref('')
 const showConflictDialog = ref(false) // Conflict dialog state
+
+// Backup state
+const isCreatingBackup = ref(false)
+const showBackupSuccess = ref(false)
+const showBackupError = ref(false)
+const backupErrorMessage = ref('')
 
 // Local data stats for migration dialog
 const localDataStats = computed(() => ({
@@ -810,6 +853,34 @@ async function handleLoadFromCloud() {
     } else {
       console.error('Failed to load data from cloud')
     }
+  }
+}
+
+// 手動建立備份
+async function handleManualBackup() {
+  isCreatingBackup.value = true
+  backupErrorMessage.value = ''
+  
+  try {
+    const result = await googleDocs.createManualBackup()
+    
+    if (result === 'success') {
+      showBackupSuccess.value = true
+    } else if (result === 'conflict') {
+      // 有衝突，顯示衝突對話框
+      showConflictDialog.value = true
+    } else if (result === 'no-data') {
+      backupErrorMessage.value = 'No cloud data to backup. Please sync first.'
+      showBackupError.value = true
+    } else {
+      backupErrorMessage.value = googleDocs.syncStatus.value.error || 'Unknown error'
+      showBackupError.value = true
+    }
+  } catch (error) {
+    backupErrorMessage.value = (error as Error).message
+    showBackupError.value = true
+  } finally {
+    isCreatingBackup.value = false
   }
 }
 
