@@ -4,7 +4,7 @@
  * 所有登入資訊（OAuth tokens）都存在本地 localStorage
  */
 
-import { ref, computed } from 'vue'
+import { computed, ref } from 'vue'
 
 // Google OAuth 設定 - 使用者需要在 Google Cloud Console 建立專案並取得 Client ID
 const GOOGLE_CLIENT_ID = '' // 使用者需要填入自己的 Client ID
@@ -24,8 +24,19 @@ const STORAGE_KEYS = {
     USER_INFO: 'md-viewer-google-user-info',
     // SYNC_FILE_ID 使用 hostname 前綴，讓不同部署使用不同的檔案
     get SYNC_FILE_ID() { return `md-viewer-google-sync-file-id-${getHostname()}` },
+    // 資料夾 ID（存放主檔案和備份）
+    get SYNC_FOLDER_ID() { return `md-viewer-google-sync-folder-id-${getHostname()}` },
+    // 備份資料夾 ID
+    get BACKUP_FOLDER_ID() { return `md-viewer-google-backup-folder-id-${getHostname()}` },
+    // 上次備份日期
+    get LAST_BACKUP_DATE() { return `md-viewer-google-last-backup-date-${getHostname()}` },
     CLIENT_ID: 'md-viewer-google-client-id'
 }
+
+// 資料夾名稱常數
+const SYNC_FOLDER_NAME = 'MD-Viewer-Data'
+const BACKUP_FOLDER_NAME = 'backups'
+const DATA_FILE_NAME = 'data.json'
 
 export interface GoogleUserInfo {
     email: string
@@ -40,10 +51,20 @@ export interface SyncStatus {
     error: string | null
 }
 
+export interface BackupFile {
+    id: string
+    name: string
+    date: string
+    modifiedTime: string
+}
+
 // 單例狀態
 const accessToken = ref<string | null>(null)
 const userInfo = ref<GoogleUserInfo | null>(null)
 const syncFileId = ref<string | null>(null)
+const syncFolderId = ref<string | null>(null)
+const backupFolderId = ref<string | null>(null)
+const backupFiles = ref<BackupFile[]>([])
 const isSyncing = ref(false)
 const lastCloudModifiedTime = ref<string | null>(null) // 上次同步時，雲端檔案的修改時間
 const lastSyncTime = ref<number | null>(null)
@@ -76,10 +97,20 @@ function loadStoredAuth() {
         const storedExpiry = localStorage.getItem(STORAGE_KEYS.TOKEN_EXPIRY)
         const storedUserInfo = localStorage.getItem(STORAGE_KEYS.USER_INFO)
         const storedFileId = localStorage.getItem(STORAGE_KEYS.SYNC_FILE_ID)
+        const storedFolderId = localStorage.getItem(STORAGE_KEYS.SYNC_FOLDER_ID)
+        const storedBackupFolderId = localStorage.getItem(STORAGE_KEYS.BACKUP_FOLDER_ID)
         const storedClientId = localStorage.getItem(STORAGE_KEYS.CLIENT_ID)
 
         if (storedClientId) {
             clientId.value = storedClientId
+        }
+
+        // 載入資料夾 ID
+        if (storedFolderId) {
+            syncFolderId.value = storedFolderId
+        }
+        if (storedBackupFolderId) {
+            backupFolderId.value = storedBackupFolderId
         }
 
         if (storedToken && storedExpiry) {
@@ -142,8 +173,14 @@ function clearStoredAuth(clearAll: boolean = true) {
     if (clearAll) {
         localStorage.removeItem(STORAGE_KEYS.USER_INFO)
         localStorage.removeItem(STORAGE_KEYS.SYNC_FILE_ID)
+        localStorage.removeItem(STORAGE_KEYS.SYNC_FOLDER_ID)
+        localStorage.removeItem(STORAGE_KEYS.BACKUP_FOLDER_ID)
+        localStorage.removeItem(STORAGE_KEYS.LAST_BACKUP_DATE)
         userInfo.value = null
         syncFileId.value = null
+        syncFolderId.value = null
+        backupFolderId.value = null
+        backupFiles.value = []
     }
 }
 
@@ -155,6 +192,16 @@ function saveClientId(id: string) {
 function saveSyncFileId(fileId: string) {
     localStorage.setItem(STORAGE_KEYS.SYNC_FILE_ID, fileId)
     syncFileId.value = fileId
+}
+
+function saveSyncFolderId(folderId: string) {
+    localStorage.setItem(STORAGE_KEYS.SYNC_FOLDER_ID, folderId)
+    syncFolderId.value = folderId
+}
+
+function saveBackupFolderId(folderId: string) {
+    localStorage.setItem(STORAGE_KEYS.BACKUP_FOLDER_ID, folderId)
+    backupFolderId.value = folderId
 }
 
 export function useGoogleDocs() {
@@ -723,6 +770,438 @@ export function useGoogleDocs() {
         syncFileId.value = null
     }
 
+    // ===== 資料夾操作函數 =====
+
+    // 搜尋或建立資料夾
+    async function findOrCreateFolder(folderName: string, parentId?: string): Promise<string> {
+        // 搜尋現有資料夾
+        let query = `name='${folderName}' and mimeType='application/vnd.google-apps.folder' and trashed=false`
+        if (parentId) {
+            query += ` and '${parentId}' in parents`
+        }
+
+        const response = await fetch(
+            `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id,name)`,
+            {
+                headers: {
+                    'Authorization': `Bearer ${accessToken.value}`
+                }
+            }
+        )
+
+        if (!response.ok) {
+            throw new Error(`Failed to search for folder: ${response.status}`)
+        }
+
+        const result = await response.json()
+        if (result.files && result.files.length > 0) {
+            return result.files[0].id
+        }
+
+        // 資料夾不存在，建立新的
+        const metadata: { name: string; mimeType: string; parents?: string[] } = {
+            name: folderName,
+            mimeType: 'application/vnd.google-apps.folder'
+        }
+        if (parentId) {
+            metadata.parents = [parentId]
+        }
+
+        const createResponse = await fetch(
+            'https://www.googleapis.com/drive/v3/files',
+            {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${accessToken.value}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(metadata)
+            }
+        )
+
+        if (!createResponse.ok) {
+            throw new Error(`Failed to create folder: ${createResponse.status}`)
+        }
+
+        const createResult = await createResponse.json()
+        return createResult.id
+    }
+
+    // 確保資料夾結構存在（主資料夾 + 備份資料夾）
+    async function ensureFolderStructure(): Promise<{ syncFolderId: string; backupFolderId: string }> {
+        // 取得或建立主資料夾
+        let mainFolderId = syncFolderId.value
+        if (!mainFolderId) {
+            mainFolderId = await findOrCreateFolder(SYNC_FOLDER_NAME)
+            saveSyncFolderId(mainFolderId)
+            console.log('[Sync] Created/found main folder:', mainFolderId)
+        }
+
+        // 取得或建立備份資料夾
+        let bkFolderId = backupFolderId.value
+        if (!bkFolderId) {
+            bkFolderId = await findOrCreateFolder(BACKUP_FOLDER_NAME, mainFolderId)
+            saveBackupFolderId(bkFolderId)
+            console.log('[Sync] Created/found backup folder:', bkFolderId)
+        }
+
+        return { syncFolderId: mainFolderId, backupFolderId: bkFolderId }
+    }
+
+    // 在資料夾中搜尋檔案
+    async function findFileInFolder(fileName: string, folderId: string): Promise<{ id: string; modifiedTime: string } | null> {
+        const query = `name='${fileName}' and '${folderId}' in parents and trashed=false`
+        const response = await fetch(
+            `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id,name,modifiedTime)`,
+            {
+                headers: {
+                    'Authorization': `Bearer ${accessToken.value}`
+                }
+            }
+        )
+
+        if (!response.ok) {
+            console.warn('[Sync] Failed to search for file in folder:', response.status)
+            return null
+        }
+
+        const result = await response.json()
+        if (result.files && result.files.length > 0) {
+            return result.files[0]
+        }
+        return null
+    }
+
+    // 在資料夾內建立檔案
+    async function createFileInFolder(fileName: string, content: string, folderId: string): Promise<string> {
+        const metadata = {
+            name: fileName,
+            mimeType: 'application/json',
+            parents: [folderId]
+        }
+
+        const formData = new FormData()
+        formData.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }))
+        formData.append('file', new Blob([content], { type: 'application/json' }))
+
+        const response = await fetch(
+            'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id',
+            {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${accessToken.value}`
+                },
+                body: formData
+            }
+        )
+
+        if (!response.ok) {
+            const error = await response.text()
+            throw new Error(`Failed to create file: ${response.status} ${error}`)
+        }
+
+        const result = await response.json()
+        return result.id
+    }
+
+    // ===== 備份相關函數 =====
+
+    // 取得今天的日期字串 (YYYY-MM-DD)
+    function getTodayDateString(): string {
+        const now = new Date()
+        return now.toISOString().split('T')[0]
+    }
+
+    // 檢查今天是否已經備份過
+    function hasBackupToday(): boolean {
+        const lastBackupDate = localStorage.getItem(STORAGE_KEYS.LAST_BACKUP_DATE)
+        return lastBackupDate === getTodayDateString()
+    }
+
+    // 標記今天已備份
+    function markBackupDone() {
+        localStorage.setItem(STORAGE_KEYS.LAST_BACKUP_DATE, getTodayDateString())
+    }
+
+    // 建立備份（複製當前主檔案到備份資料夾）
+    async function createBackup(sourceFileId: string, bkFolderId: string): Promise<string | null> {
+        const todayString = getTodayDateString()
+        const backupFileName = `backup-${todayString}.json`
+
+        // 檢查今天的備份是否已存在
+        const existingBackup = await findFileInFolder(backupFileName, bkFolderId)
+        if (existingBackup) {
+            console.log('[Backup] Backup for today already exists:', existingBackup.id)
+            return existingBackup.id
+        }
+
+        // 複製檔案到備份資料夾
+        const response = await fetch(
+            `https://www.googleapis.com/drive/v3/files/${sourceFileId}/copy`,
+            {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${accessToken.value}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    name: backupFileName,
+                    parents: [bkFolderId]
+                })
+            }
+        )
+
+        if (!response.ok) {
+            console.error('[Backup] Failed to create backup:', response.status)
+            return null
+        }
+
+        const result = await response.json()
+        console.log('[Backup] Created backup:', result.id)
+        markBackupDone()
+        return result.id
+    }
+
+    // 列出所有備份檔案
+    async function listBackupFiles(): Promise<BackupFile[]> {
+        if (!backupFolderId.value) {
+            return []
+        }
+
+        const query = `'${backupFolderId.value}' in parents and trashed=false and name contains 'backup-'`
+        const response = await fetch(
+            `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id,name,modifiedTime)&orderBy=name desc`,
+            {
+                headers: {
+                    'Authorization': `Bearer ${accessToken.value}`
+                }
+            }
+        )
+
+        if (!response.ok) {
+            console.warn('[Backup] Failed to list backup files:', response.status)
+            return []
+        }
+
+        const result = await response.json()
+        if (!result.files) {
+            return []
+        }
+
+        const files: BackupFile[] = result.files.map((file: { id: string; name: string; modifiedTime: string }) => {
+            const dateMatch = file.name.match(/backup-(\d{4}-\d{2}-\d{2})\.json/)
+            return {
+                id: file.id,
+                name: file.name,
+                date: dateMatch ? dateMatch[1] : file.name,
+                modifiedTime: file.modifiedTime
+            }
+        })
+
+        backupFiles.value = files
+        return files
+    }
+
+    // 清理過期的備份檔案
+    async function cleanupOldBackups(retentionDays: number): Promise<number> {
+        if (!backupFolderId.value) {
+            return 0
+        }
+
+        const files = await listBackupFiles()
+        const cutoffDate = new Date()
+        cutoffDate.setDate(cutoffDate.getDate() - retentionDays)
+
+        let deletedCount = 0
+
+        for (const backup of files) {
+            const backupDate = new Date(backup.date)
+            if (backupDate < cutoffDate) {
+                try {
+                    await fetch(
+                        `https://www.googleapis.com/drive/v3/files/${backup.id}`,
+                        {
+                            method: 'DELETE',
+                            headers: {
+                                'Authorization': `Bearer ${accessToken.value}`
+                            }
+                        }
+                    )
+                    console.log('[Backup] Deleted old backup:', backup.name)
+                    deletedCount++
+                } catch (e) {
+                    console.warn('[Backup] Failed to delete backup:', backup.name, e)
+                }
+            }
+        }
+
+        // 重新載入備份列表
+        if (deletedCount > 0) {
+            await listBackupFiles()
+        }
+
+        return deletedCount
+    }
+
+    // 從備份檔案還原
+    async function restoreFromBackup(backupFileId: string): Promise<object | null> {
+        try {
+            const content = await getGoogleDocContent(backupFileId)
+            if (content) {
+                return JSON.parse(content)
+            }
+            return null
+        } catch (error) {
+            console.error('[Backup] Failed to restore from backup:', error)
+            syncError.value = 'Failed to restore from backup: ' + (error as Error).message
+            return null
+        }
+    }
+
+    // 遷移舊格式資料到新資料夾結構
+    async function migrateFromLegacyFormat(targetFolderId: string): Promise<{ migrated: boolean; data: object | null }> {
+        console.log('[Migration] Checking for legacy format data...')
+
+        // 檢查是否有舊格式的檔案
+        const legacyFileId = await findExistingSyncFile()
+
+        if (!legacyFileId) {
+            console.log('[Migration] No legacy format file found')
+            return { migrated: false, data: null }
+        }
+
+        console.log('[Migration] Found legacy format file:', legacyFileId)
+
+        try {
+            // 讀取舊檔案內容
+            const content = await getGoogleDocContent(legacyFileId)
+            if (!content) {
+                console.warn('[Migration] Could not read legacy file content')
+                return { migrated: false, data: null }
+            }
+
+            const data = JSON.parse(content)
+            console.log('[Migration] Successfully read legacy data')
+
+            // 將舊資料複製到新資料夾
+            const newFileId = await createFileInFolder(DATA_FILE_NAME, content, targetFolderId)
+            saveSyncFileId(newFileId)
+
+            console.log('[Migration] Successfully migrated data to new folder structure')
+            console.log('[Migration] New file ID:', newFileId)
+
+            // 可選：將舊檔案移到垃圾桶（或保留作為額外備份）
+            // 這裡我們選擇保留舊檔案，使用者可以手動刪除
+            console.log('[Migration] Legacy file preserved for safety. You can manually delete it from Google Drive.')
+
+            return { migrated: true, data }
+        } catch (error) {
+            console.error('[Migration] Error during migration:', error)
+            return { migrated: false, data: null }
+        }
+    }
+
+    // 檢查是否需要遷移
+    async function checkAndMigrate(targetFolderId: string): Promise<boolean> {
+        // 已經在新資料夾中有資料嗎？
+        const existingNewFile = await findFileInFolder(DATA_FILE_NAME, targetFolderId)
+        if (existingNewFile) {
+            console.log('[Migration] New format file already exists, no migration needed')
+            return false
+        }
+
+        // 嘗試遷移
+        const result = await migrateFromLegacyFormat(targetFolderId)
+        return result.migrated
+    }
+
+    // 使用資料夾結構同步到 Google Drive（含備份邏輯）
+    async function syncToGoogleDocsWithBackup(data: object, backupEnabled: boolean, retentionDays: number, force: boolean = false): Promise<'success' | 'conflict' | 'error'> {
+        if (!accessToken.value) {
+            syncError.value = 'Not signed in to Google'
+            return 'error'
+        }
+
+        isSyncing.value = true
+        syncError.value = null
+
+        try {
+            // 確保資料夾結構存在
+            const folders = await ensureFolderStructure()
+
+            // 檢查並遷移舊格式資料（如果存在）
+            // 這確保從舊版升級時不會遺失資料
+            const migrated = await checkAndMigrate(folders.syncFolderId)
+            if (migrated) {
+                console.log('[Sync] Successfully migrated from legacy format')
+            }
+
+            // 在主資料夾中搜尋現有的資料檔案
+            let existingFile = await findFileInFolder(DATA_FILE_NAME, folders.syncFolderId)
+
+            // 如果啟用備份且檔案存在，且今天還沒備份
+            if (backupEnabled && existingFile && !hasBackupToday()) {
+                console.log('[Sync] Creating daily backup before sync...')
+                await createBackup(existingFile.id, folders.backupFolderId)
+
+                // 清理過期備份
+                await cleanupOldBackups(retentionDays)
+            }
+
+            const content = JSON.stringify(data, null, 2)
+
+            if (existingFile) {
+                // 檢查衝突
+                if (!force) {
+                    try {
+                        const status = await checkCloudFileStatus(existingFile.id)
+                        if (lastCloudModifiedTime.value && status.modifiedTime > lastCloudModifiedTime.value) {
+                            console.warn('Conflict detected: remote file is newer')
+                            return 'conflict'
+                        }
+                    } catch (e) {
+                        console.warn('Failed to check cloud status, proceeding with caution', e)
+                    }
+                }
+
+                // 更新現有檔案
+                const updatedMetadata = await updateGoogleDoc(existingFile.id, content)
+                lastCloudModifiedTime.value = updatedMetadata.modifiedTime
+                saveSyncFileId(existingFile.id)
+            } else {
+                // 建立新檔案
+                const fileId = await createFileInFolder(DATA_FILE_NAME, content, folders.syncFolderId)
+                saveSyncFileId(fileId)
+
+                try {
+                    const status = await checkCloudFileStatus(fileId)
+                    lastCloudModifiedTime.value = status.modifiedTime
+                } catch (e) {
+                    console.warn('Failed to get initial file time', e)
+                }
+            }
+
+            lastSyncTime.value = Date.now()
+            return 'success'
+        } catch (error) {
+            console.error('Sync failed:', error)
+            syncError.value = 'Sync failed: ' + (error as Error).message
+
+            if ((error as Error).message.includes('401')) {
+                clearStoredAuth()
+            }
+
+            return 'error'
+        } finally {
+            isSyncing.value = false
+        }
+    }
+
+    // 刷新備份檔案列表
+    async function refreshBackupList(): Promise<BackupFile[]> {
+        return await listBackupFiles()
+    }
+
     return {
         // State
         isConnected,
@@ -731,6 +1210,7 @@ export function useGoogleDocs() {
         syncStatus,
         clientId: computed(() => clientId.value),
         hasSyncFile: computed(() => !!syncFileId.value),
+        backupFiles: computed(() => backupFiles.value),
 
         // Actions
         initialize,
@@ -740,7 +1220,13 @@ export function useGoogleDocs() {
         signOut,
         handleOAuthCallback,
         syncToGoogleDocs,
+        syncToGoogleDocsWithBackup,
         loadFromGoogleDocs,
-        clearSyncFile
+        clearSyncFile,
+        // Backup actions
+        listBackupFiles,
+        restoreFromBackup,
+        cleanupOldBackups,
+        refreshBackupList
     }
 }

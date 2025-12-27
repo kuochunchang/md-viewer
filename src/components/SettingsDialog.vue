@@ -197,6 +197,107 @@
                     </div>
                   </v-expand-transition>
 
+                  <!-- Backup Settings -->
+                  <div class="setting-item">
+                    <div class="setting-label">
+                      <span class="setting-name">Daily Backup</span>
+                      <span class="setting-description">Create daily backups before sync</span>
+                    </div>
+                    <v-switch
+                      v-model="localSettings.backupEnabled"
+                      color="primary"
+                      hide-details
+                      density="compact"
+                    ></v-switch>
+                  </div>
+
+                  <v-expand-transition>
+                    <div v-if="localSettings.backupEnabled">
+                      <div class="setting-item">
+                        <div class="setting-label">
+                          <span class="setting-name">Retention Days</span>
+                          <span class="setting-description">Keep backups for</span>
+                        </div>
+                        <v-select
+                          v-model="localSettings.backupRetentionDays"
+                          :items="retentionDaysOptions"
+                          item-title="text"
+                          item-value="value"
+                          variant="outlined"
+                          density="compact"
+                          hide-details
+                          class="retention-days-select"
+                        ></v-select>
+                      </div>
+
+                      <!-- Backup Files List -->
+                      <div v-if="backupFilesList.length > 0" class="backup-section">
+                        <div class="setting-label mb-2">
+                          <span class="setting-name">Available Backups ({{ backupFilesList.length }})</span>
+                          <v-btn
+                            icon
+                            variant="text"
+                            size="x-small"
+                            :loading="isLoadingBackups"
+                            @click="refreshBackups"
+                          >
+                            <v-icon size="16">mdi-refresh</v-icon>
+                          </v-btn>
+                        </div>
+                        <v-list density="compact" class="backup-list rounded-lg">
+                          <v-list-item
+                            v-for="backup in displayedBackups"
+                            :key="backup.id"
+                            class="backup-item"
+                          >
+                            <template #prepend>
+                              <v-icon color="primary" size="small">mdi-file-document</v-icon>
+                            </template>
+                            <v-list-item-title class="text-body-2">
+                              {{ backup.date }}
+                            </v-list-item-title>
+                            <v-list-item-subtitle class="text-caption">
+                              {{ formatTime(new Date(backup.modifiedTime).getTime()) }}
+                            </v-list-item-subtitle>
+                            <template #append>
+                              <v-btn
+                                variant="text"
+                                size="x-small"
+                                color="warning"
+                                @click="handleRestoreBackup(backup)"
+                              >
+                                Restore
+                              </v-btn>
+                            </template>
+                          </v-list-item>
+                        </v-list>
+                        <!-- Show More/Less Button -->
+                        <v-btn
+                          v-if="hasMoreBackups"
+                          variant="text"
+                          size="x-small"
+                          color="primary"
+                          class="mt-2"
+                          @click="showAllBackups = !showAllBackups"
+                        >
+                          <v-icon start size="14">{{ showAllBackups ? 'mdi-chevron-up' : 'mdi-chevron-down' }}</v-icon>
+                          {{ showAllBackups ? 'Show Less' : `Show ${backupFilesList.length - MAX_VISIBLE_BACKUPS} More` }}
+                        </v-btn>
+                      </div>
+
+                      <v-alert
+                        type="info"
+                        variant="tonal"
+                        density="compact"
+                        class="mt-2"
+                      >
+                        <p class="text-caption mb-0">
+                          A backup is created each day before the first sync. Backups older than {{ localSettings.backupRetentionDays }} days are auto-deleted.
+                        </p>
+                      </v-alert>
+                    </div>
+                  </v-expand-transition>
+
                   <!-- Migration Prompt (shown when cloud file doesn't exist) -->
                   <v-alert 
                     v-if="shouldOfferMigration && localDataStats.tabCount > 0"
@@ -438,9 +539,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed, onMounted } from 'vue'
-import { useSettingsStore, type SyncSettings } from '../stores/settingsStore'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useGoogleDocs } from '../composables/useGoogleDocs'
+import { useSettingsStore, type SyncSettings } from '../stores/settingsStore'
 import { useTabsStore } from '../stores/tabsStore'
 
 const settingsStore = useSettingsStore()
@@ -494,6 +595,32 @@ const syncIntervalOptions = [
   { text: '30 Minutes', value: 30 },
   { text: '1 Hour', value: 60 }
 ]
+
+// Backup retention days options
+const retentionDaysOptions = [
+  { text: '3 Days', value: 3 },
+  { text: '5 Days', value: 5 },
+  { text: '7 Days', value: 7 },
+  { text: '14 Days', value: 14 },
+  { text: '30 Days', value: 30 }
+]
+
+// Backup state
+const isLoadingBackups = ref(false)
+const backupFilesList = computed(() => googleDocs.backupFiles.value)
+const selectedBackupForRestore = ref<{ id: string; date: string } | null>(null)
+const showAllBackups = ref(false)
+const MAX_VISIBLE_BACKUPS = 3
+
+// 限制顯示的備份數量
+const displayedBackups = computed(() => {
+  if (showAllBackups.value) {
+    return backupFilesList.value
+  }
+  return backupFilesList.value.slice(0, MAX_VISIBLE_BACKUPS)
+})
+
+const hasMoreBackups = computed(() => backupFilesList.value.length > MAX_VISIBLE_BACKUPS)
 
 // Watch for dialog open to sync local state
 watch(isOpen, (open) => {
@@ -563,11 +690,21 @@ async function handleReauthorize() {
 
 async function handleManualSync() {
   const data = tabsStore.getDataForExport()
-  // 嘗試同步（不強制覆蓋）
-  const result = await googleDocs.syncToGoogleDocs(data, false)
+  // 使用備份同步方法（不強制覆蓋）
+  const result = await googleDocs.syncToGoogleDocsWithBackup(
+    data,
+    settingsStore.settings.backupEnabled,
+    settingsStore.settings.backupRetentionDays,
+    false
+  )
   
   if (result === 'conflict') {
     showConflictDialog.value = true
+  }
+  
+  // 同步後刷新備份列表
+  if (result === 'success' && settingsStore.settings.backupEnabled) {
+    await googleDocs.refreshBackupList()
   }
 }
 
@@ -575,7 +712,12 @@ async function confirmForceSync() {
   showConflictDialog.value = false
   // 強制同步
   const data = tabsStore.getDataForExport()
-  await googleDocs.syncToGoogleDocs(data, true)
+  await googleDocs.syncToGoogleDocsWithBackup(
+    data,
+    settingsStore.settings.backupEnabled,
+    settingsStore.settings.backupRetentionDays,
+    true
+  )
 }
 
 async function handleLoadFromCloud() {
@@ -604,7 +746,9 @@ function resetSettings() {
   localSettings.value = {
     provider: 'local',
     autoSync: false,
-    syncIntervalMinutes: 5
+    syncIntervalMinutes: 5,
+    backupEnabled: false,
+    backupRetentionDays: 7
   }
 }
 
@@ -613,8 +757,43 @@ function saveAndClose() {
   settingsStore.setProvider(localSettings.value.provider)
   settingsStore.setAutoSync(localSettings.value.autoSync)
   settingsStore.setSyncInterval(localSettings.value.syncIntervalMinutes)
+  settingsStore.setBackupEnabled(localSettings.value.backupEnabled)
+  settingsStore.setBackupRetentionDays(localSettings.value.backupRetentionDays)
   
   closeDialog()
+}
+
+// Backup functions
+async function refreshBackups() {
+  isLoadingBackups.value = true
+  try {
+    await googleDocs.refreshBackupList()
+  } finally {
+    isLoadingBackups.value = false
+  }
+}
+
+async function handleRestoreBackup(backup: { id: string; date: string }) {
+  selectedBackupForRestore.value = backup
+  
+  if (!confirm(`Are you sure you want to restore the backup from ${backup.date}? This will replace your current data.`)) {
+    return
+  }
+  
+  try {
+    const data = await googleDocs.restoreFromBackup(backup.id)
+    if (data && typeof data === 'object') {
+      const loaded = tabsStore.loadFromData(data as any)
+      if (loaded) {
+        alert('Data restored successfully!')
+        window.location.reload()
+      } else {
+        alert('Failed to restore data. Please try again.')
+      }
+    }
+  } catch (error) {
+    alert('Failed to restore backup: ' + (error as Error).message)
+  }
 }
 
 // Migration functions
@@ -628,9 +807,14 @@ async function performMigration() {
   
   try {
     const data = tabsStore.getDataForExport()
-    const success = await googleDocs.syncToGoogleDocs(data)
+    // 使用新的備份同步方法
+    const result = await googleDocs.syncToGoogleDocsWithBackup(
+      data,
+      localSettings.value.backupEnabled,
+      localSettings.value.backupRetentionDays
+    )
     
-    if (success) {
+    if (result === 'success') {
       showMigrationDialog.value = false
       showMigrationSuccess.value = true
       
@@ -822,6 +1006,31 @@ async function performMigration() {
 .migration-content {
   p {
     color: var(--text-secondary);
+  }
+}
+
+// Backup styles
+.retention-days-select {
+  max-width: 120px;
+}
+
+.backup-section {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border-color-light);
+}
+
+.backup-list {
+  border: 1px solid var(--border-color);
+  max-height: 180px;
+  overflow-y: auto;
+  
+  .backup-item {
+    border-bottom: 1px solid var(--border-color-light);
+    
+    &:last-child {
+      border-bottom: none;
+    }
   }
 }
 </style>

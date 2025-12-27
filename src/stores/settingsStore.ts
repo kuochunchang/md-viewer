@@ -12,6 +12,9 @@ export interface SyncSettings {
     provider: StorageProvider
     autoSync: boolean
     syncIntervalMinutes: number
+    // Backup settings
+    backupEnabled: boolean
+    backupRetentionDays: number
 }
 
 const SETTINGS_STORAGE_KEY = 'md-viewer-settings'
@@ -19,7 +22,10 @@ const SETTINGS_STORAGE_KEY = 'md-viewer-settings'
 const defaultSettings: SyncSettings = {
     provider: 'local',
     autoSync: false,
-    syncIntervalMinutes: 5
+    syncIntervalMinutes: 5,
+    // Backup defaults
+    backupEnabled: false,
+    backupRetentionDays: 7
 }
 
 export const useSettingsStore = defineStore('settings', () => {
@@ -71,6 +77,18 @@ export const useSettingsStore = defineStore('settings', () => {
         saveSettings()
     }
 
+    // 設定備份開關
+    function setBackupEnabled(enabled: boolean) {
+        settings.value.backupEnabled = enabled
+        saveSettings()
+    }
+
+    // 設定備份保留天數
+    function setBackupRetentionDays(days: number) {
+        settings.value.backupRetentionDays = Math.max(1, Math.min(30, days))
+        saveSettings()
+    }
+
     // 開啟設定對話框
     function openSettingsDialog() {
         isSettingsDialogOpen.value = true
@@ -106,6 +124,8 @@ export const useSettingsStore = defineStore('settings', () => {
         setProvider,
         setAutoSync,
         setSyncInterval,
+        setBackupEnabled,
+        setBackupRetentionDays,
         openSettingsDialog,
         closeSettingsDialog,
         resetToDefaults
