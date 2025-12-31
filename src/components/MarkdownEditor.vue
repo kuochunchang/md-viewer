@@ -30,6 +30,15 @@
         >
           <v-icon size="18">mdi-format-underline</v-icon>
         </v-btn>
+        <v-btn
+          icon
+          variant="text"
+          size="small"
+          title="刪除線 (Strikethrough)"
+          @click="insertFormat('strikethrough')"
+        >
+          <v-icon size="18">mdi-format-strikethrough</v-icon>
+        </v-btn>
       </div>
       
       <v-divider vertical class="toolbar-divider" />
@@ -266,7 +275,7 @@ const copyToClipboard = async () => {
 }
 
 // Format insertion functionality
-type FormatType = 'bold' | 'italic' | 'underline' | 'h1' | 'h2' | 'h3' | 'bullet' | 'numbered'
+type FormatType = 'bold' | 'italic' | 'underline' | 'strikethrough' | 'h1' | 'h2' | 'h3' | 'bullet' | 'numbered'
 
 // Helper function to check if text is wrapped with markers
 const isWrappedWith = (text: string, prefix: string, suffix: string): boolean => {
@@ -401,6 +410,36 @@ const insertFormat = (type: FormatType) => {
         newSelectionStart = start + 3
         newSelectionEnd = start + 5
         cursorOffset = start + 5
+      }
+      break;
+    }
+    case 'strikethrough': {
+      const prefix = '~~'
+      const suffix = '~~'
+      
+      if (selectedText && isWrappedWith(selectedText, prefix, suffix)) {
+        const unwrapped = selectedText.slice(2, -2)
+        newText = beforeText + unwrapped + afterText
+        newSelectionStart = start
+        newSelectionEnd = start + unwrapped.length
+        cursorOffset = newSelectionEnd
+      }
+      else if (checkSurroundingFormat(beforeText, afterText, prefix, suffix)) {
+        newText = beforeText.slice(0, -2) + selectedText + afterText.slice(2)
+        newSelectionStart = start - 2
+        newSelectionEnd = newSelectionStart + selectedText.length
+        cursorOffset = newSelectionEnd
+      }
+      else if (selectedText) {
+        newText = beforeText + prefix + selectedText + suffix + afterText
+        newSelectionStart = start + 2
+        newSelectionEnd = newSelectionStart + selectedText.length
+        cursorOffset = end + 4
+      } else {
+        newText = beforeText + '~~文字~~' + afterText
+        newSelectionStart = start + 2
+        newSelectionEnd = start + 4
+        cursorOffset = start + 4
       }
       break
     }
