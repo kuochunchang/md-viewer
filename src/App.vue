@@ -59,6 +59,7 @@
               ref="editorRef"
               :model-value="activeTabContent"
               :font-size="fontSize"
+              :tab-id="tabsStore.activeTabId || ''"
               @update:model-value="handleContentUpdate"
               @scroll="handleEditorScroll"
             />
@@ -113,9 +114,9 @@ import SettingsDialog from './components/SettingsDialog.vue'
 import SettingsMenu from './components/SettingsMenu.vue'
 import SplitPane from './components/SplitPane.vue'
 import TabBar from './components/TabBar.vue'
-import { useTabsStore } from './stores/tabsStore'
 import { useGoogleDocs } from './composables/useGoogleDocs'
 import { useSettingsStore } from './stores/settingsStore'
+import { useTabsStore } from './stores/tabsStore'
 
 const tabsStore = useTabsStore()
 const googleDocs = useGoogleDocs()

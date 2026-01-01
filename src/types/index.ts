@@ -14,6 +14,17 @@ export interface Folder {
   expanded: boolean
 }
 
+// History state for undo/redo functionality (per-tab, not persisted)
+export interface HistoryState {
+  content: string
+  cursorPos: number
+}
+
+export interface TabHistory {
+  stack: HistoryState[]
+  index: number
+}
+
 export interface TabsState {
   tabs: Tab[]
   folders: Folder[]

@@ -5,7 +5,7 @@ import {
   saveToLocalStorage,
   type StoredTabsData
 } from '../composables/useLocalStorage'
-import type { Tab, Folder } from '../types'
+import type { Folder, HistoryState, Tab, TabHistory } from '../types'
 import { debounce } from '../utils/debounce'
 import { DEFAULT_CONTENT } from '../utils/defaultContent'
 
@@ -22,6 +22,104 @@ export const useTabsStore = defineStore('tabs', () => {
   // Editing state (global to ensure only one item is being edited at a time)
   const editingItemId = ref<string | null>(null)
   const editingItemType = ref<'file' | 'folder' | null>(null)
+
+  // Per-tab undo/redo history (not persisted to localStorage)
+  const tabHistories = new Map<string, TabHistory>()
+  const MAX_HISTORY_SIZE = 100
+
+  // Helper to get or create history for a tab
+  function getOrCreateHistory(tabId: string): TabHistory {
+    if (!tabHistories.has(tabId)) {
+      const tab = tabs.value.find(t => t.id === tabId)
+      const initialContent = tab?.content || ''
+      tabHistories.set(tabId, {
+        stack: [{ content: initialContent, cursorPos: 0 }],
+        index: 0
+      })
+    }
+    return tabHistories.get(tabId)!
+  }
+
+  // Push a new state to tab's history
+  function pushTabHistory(tabId: string, content: string, cursorPos: number): void {
+    const history = getOrCreateHistory(tabId)
+
+    // Don't push if content hasn't changed
+    if (history.stack[history.index]?.content === content) return
+
+    // Remove any future history if we're not at the end
+    if (history.index < history.stack.length - 1) {
+      history.stack = history.stack.slice(0, history.index + 1)
+    }
+
+    history.stack.push({ content, cursorPos })
+    history.index = history.stack.length - 1
+
+    // Limit history size
+    if (history.stack.length > MAX_HISTORY_SIZE) {
+      history.stack.shift()
+      history.index--
+    }
+  }
+
+  // Undo for a specific tab
+  function undoTab(tabId: string): HistoryState | null {
+    const history = getOrCreateHistory(tabId)
+    if (history.index <= 0) return null
+
+    history.index--
+    const state = history.stack[history.index]
+
+    // Update tab content
+    const tab = tabs.value.find(t => t.id === tabId)
+    if (tab) {
+      tab.content = state.content
+    }
+
+    return state
+  }
+
+  // Redo for a specific tab
+  function redoTab(tabId: string): HistoryState | null {
+    const history = getOrCreateHistory(tabId)
+    if (history.index >= history.stack.length - 1) return null
+
+    history.index++
+    const state = history.stack[history.index]
+
+    // Update tab content
+    const tab = tabs.value.find(t => t.id === tabId)
+    if (tab) {
+      tab.content = state.content
+    }
+
+    return state
+  }
+
+  // Check if undo is available
+  function canUndoTab(tabId: string): boolean {
+    const history = tabHistories.get(tabId)
+    return history ? history.index > 0 : false
+  }
+
+  // Check if redo is available
+  function canRedoTab(tabId: string): boolean {
+    const history = tabHistories.get(tabId)
+    return history ? history.index < history.stack.length - 1 : false
+  }
+
+  // Clear history for a tab (called when tab is deleted)
+  function clearTabHistory(tabId: string): void {
+    tabHistories.delete(tabId)
+  }
+
+  // Reset history for a tab (for external content loads)
+  function resetTabHistory(tabId: string, content: string): void {
+    tabHistories.set(tabId, {
+      stack: [{ content, cursorPos: 0 }],
+      index: 0
+    })
+  }
 
   // Getters
   const activeTab = computed(() => {
@@ -188,6 +286,9 @@ export const useTabsStore = defineStore('tabs', () => {
     if (openTabIds.value.includes(id)) {
       closeTab(id)
     }
+
+    // Clear history for this tab
+    clearTabHistory(id)
 
     // Then remove from master list
     tabs.value.splice(index, 1)
@@ -450,6 +551,14 @@ export const useTabsStore = defineStore('tabs', () => {
       const item = openTabIds.value.splice(fromIndex, 1)[0]
       openTabIds.value.splice(toIndex, 0, item)
       saveToStore()
-    }
+    },
+    // History management functions
+    pushTabHistory,
+    undoTab,
+    redoTab,
+    canUndoTab,
+    canRedoTab,
+    clearTabHistory,
+    resetTabHistory
   }
 })

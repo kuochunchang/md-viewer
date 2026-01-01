@@ -208,11 +208,13 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { useGeminiAI } from '../composables/useGeminiAI';
+import { useTabsStore } from '../stores/tabsStore';
 import AIAssistantDialog from './AIAssistantDialog.vue';
 
 interface Props {
   modelValue: string
   fontSize?: number
+  tabId: string  // Required for per-tab history management
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -237,77 +239,65 @@ const selectionRange = ref<{ start: number; end: number } | null>(null)
 const showAIDialog = ref(false)
 const showProcessingIndicator = computed(() => geminiAI.isProcessing.value)
 
-// History management for Undo/Redo
-interface HistoryState {
-  content: string
-  cursorPos: number
-}
-
-const historyStack = ref<HistoryState[]>([{ content: props.modelValue, cursorPos: 0 }])
-const historyIndex = ref(0)
+// Per-tab history management using store
+const tabsStore = useTabsStore()
 const isUndoRedo = ref(false)
 
-const canUndo = computed(() => historyIndex.value > 0)
-const canRedo = computed(() => historyIndex.value < historyStack.value.length - 1)
+// Computed properties for undo/redo availability
+const canUndo = computed(() => props.tabId ? tabsStore.canUndoTab(props.tabId) : false)
+const canRedo = computed(() => props.tabId ? tabsStore.canRedoTab(props.tabId) : false)
 
 const pushHistory = (content: string, cursorPos: number) => {
   // Don't push if we're in the middle of an undo/redo operation
-  if (isUndoRedo.value) return
+  if (isUndoRedo.value || !props.tabId) return
   
-  // Don't push if content hasn't changed
-  if (historyStack.value[historyIndex.value]?.content === content) return
-  
-  // Remove any future history if we're not at the end
-  if (historyIndex.value < historyStack.value.length - 1) {
-    historyStack.value = historyStack.value.slice(0, historyIndex.value + 1)
-  }
-  
-  historyStack.value.push({ content, cursorPos })
-  historyIndex.value = historyStack.value.length - 1
-  
-  // Limit history size to 100 entries
-  if (historyStack.value.length > 100) {
-    historyStack.value.shift()
-    historyIndex.value--
-  }
+  tabsStore.pushTabHistory(props.tabId, content, cursorPos)
 }
 
 const undo = () => {
-  if (!canUndo.value) return
+  if (!canUndo.value || !props.tabId) return
   
   isUndoRedo.value = true
-  historyIndex.value--
-  const state = historyStack.value[historyIndex.value]
-  localContent.value = state.content
-  emit('update:modelValue', state.content)
+  const state = tabsStore.undoTab(props.tabId)
   
-  setTimeout(() => {
-    const textarea = textareaRef.value
-    if (textarea) {
-      textarea.focus()
-      textarea.setSelectionRange(state.cursorPos, state.cursorPos)
-    }
+  if (state) {
+    localContent.value = state.content
+    emit('update:modelValue', state.content)
+    
+    setTimeout(() => {
+      const textarea = textareaRef.value
+      if (textarea) {
+        textarea.focus()
+        textarea.setSelectionRange(state.cursorPos, state.cursorPos)
+      }
+      isUndoRedo.value = false
+    }, 0)
+  } else {
     isUndoRedo.value = false
-  }, 0)
+  }
 }
 
 const redo = () => {
-  if (!canRedo.value) return
+  if (!canRedo.value || !props.tabId) return
   
   isUndoRedo.value = true
-  historyIndex.value++
-  const state = historyStack.value[historyIndex.value]
-  localContent.value = state.content
-  emit('update:modelValue', state.content)
+  const state = tabsStore.redoTab(props.tabId)
   
-  setTimeout(() => {
-    const textarea = textareaRef.value
-    if (textarea) {
-      textarea.focus()
-      textarea.setSelectionRange(state.cursorPos, state.cursorPos)
-    }
+  if (state) {
+    localContent.value = state.content
+    emit('update:modelValue', state.content)
+    
+    setTimeout(() => {
+      const textarea = textareaRef.value
+      if (textarea) {
+        textarea.focus()
+        textarea.setSelectionRange(state.cursorPos, state.cursorPos)
+      }
+      isUndoRedo.value = false
+    }, 0)
+  } else {
     isUndoRedo.value = false
-  }, 0)
+  }
 }
 
 const handleKeydown = (e: KeyboardEvent) => {
