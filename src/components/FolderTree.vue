@@ -31,7 +31,7 @@
         v-model="editingName"
         class="folder-name-input"
         @blur="finishEditingFolder"
-        @keydown.enter="finishEditingFolder"
+        @keydown.enter="handleFolderKeydown"
         @keydown.escape="cancelEditingFolder"
         @click.stop
       />
@@ -111,7 +111,7 @@
           v-model="editingFileName"
           class="file-name-input"
           @blur="finishFileEditing"
-          @keydown.enter="finishFileEditing"
+          @keydown.enter="handleFileKeydown"
           @keydown.escape="cancelFileEditing"
           @click.stop
         />
@@ -139,9 +139,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, nextTick } from 'vue'
-import { useTabsStore } from '../stores/tabsStore'
-import type { Folder } from '../types'
+import { computed, nextTick, ref } from 'vue';
+import { useTabsStore } from '../stores/tabsStore';
+import type { Folder } from '../types';
 
 const props = defineProps<{
   folder: Folder
@@ -197,6 +197,12 @@ function startEditingFolder() {
   })
 }
 
+function handleFolderKeydown(event: KeyboardEvent) {
+  // Ignore Enter during IME composition (e.g., Chinese input)
+  if (event.isComposing) return
+  finishEditingFolder()
+}
+
 function finishEditingFolder() {
   if (editingName.value.trim()) {
     tabsStore.renameFolder(props.folder.id, editingName.value)
@@ -222,6 +228,12 @@ function startFileEditing(file: { id: string; name: string }) {
       }
     })
   })
+}
+
+function handleFileKeydown(event: KeyboardEvent) {
+  // Ignore Enter during IME composition (e.g., Chinese input)
+  if (event.isComposing) return
+  finishFileEditing()
 }
 
 function finishFileEditing() {

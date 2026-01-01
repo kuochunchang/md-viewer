@@ -74,7 +74,7 @@
           v-model="editingFileName"
           class="file-name-input"
           @blur="finishFileEditing"
-          @keydown.enter="finishFileEditing"
+          @keydown.enter="handleFileKeydown"
           @keydown.escape="cancelFileEditing"
           @click.stop
         />
@@ -129,7 +129,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, nextTick } from 'vue'
+import { computed, nextTick, ref } from 'vue'
 import { useTabsStore } from '../stores/tabsStore'
 import ConfirmDialog from './ConfirmDialog.vue'
 import FolderTree from './FolderTree.vue'
@@ -201,6 +201,12 @@ function startFileEditing(file: { id: string; name: string }) {
       }
     })
   })
+}
+
+function handleFileKeydown(event: KeyboardEvent) {
+  // Ignore Enter during IME composition (e.g., Chinese input)
+  if (event.isComposing) return
+  finishFileEditing()
 }
 
 function finishFileEditing() {

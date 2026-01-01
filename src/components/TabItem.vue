@@ -16,7 +16,7 @@
         v-model="editingName"
         class="tab-name-input"
         @blur="handleBlur"
-        @keyup.enter="handleBlur"
+        @keyup.enter="handleEnterKey"
         @keyup.esc="handleCancel"
         @click.stop
       />
@@ -83,6 +83,12 @@ function handleDoubleClick() {
   if (!isEditing.value) {
     isEditing.value = true
   }
+}
+
+function handleEnterKey(event: KeyboardEvent) {
+  // Ignore Enter during IME composition (e.g., Chinese input)
+  if (event.isComposing) return
+  handleBlur()
 }
 
 function handleBlur() {
