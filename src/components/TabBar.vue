@@ -6,6 +6,7 @@
         :key="tab.id"
         :tab="tab"
         :is-active="tab.id === activeTabId"
+        :tab-index="index"
         draggable="true"
         @dragstart="handleDragStart($event, index)"
         @dragover.prevent

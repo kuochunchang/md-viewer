@@ -4,6 +4,7 @@
     :class="{ active: isActive, editing: isEditing }"
     @click="handleClick"
     @dblclick="handleDoubleClick"
+    @contextmenu.prevent="handleContextMenu"
     :title="tab.name"
   >
     <div class="tab-content">
@@ -32,16 +33,52 @@
     >
       <v-icon size="14">mdi-close</v-icon>
     </v-btn>
+
+    <!-- Right-click Context Menu -->
+    <v-menu
+      v-model="showContextMenu"
+      :target="contextMenuPosition"
+      location="bottom start"
+      :close-on-content-click="true"
+    >
+      <v-list density="compact" class="tab-context-menu">
+        <v-list-item
+          prepend-icon="mdi-close"
+          title="Close"
+          @click="handleClose"
+        />
+        <v-divider />
+        <v-list-item
+          prepend-icon="mdi-close-box-multiple-outline"
+          title="Close Others"
+          @click="handleCloseOthers"
+        />
+        <v-list-item
+          prepend-icon="mdi-arrow-collapse-right"
+          title="Close to the Right"
+          :disabled="!hasTabsToRight"
+          @click="handleCloseToRight"
+        />
+        <v-divider />
+        <v-list-item
+          prepend-icon="mdi-close-circle-outline"
+          title="Close All"
+          @click="handleCloseAll"
+        />
+      </v-list>
+    </v-menu>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
+import { useTabsStore } from '../stores/tabsStore'
 import type { Tab } from '../types'
 
 interface Props {
   tab: Tab
   isActive: boolean
+  tabIndex: number  // Index of this tab in openTabs array
 }
 
 interface Emits {
@@ -52,10 +89,21 @@ interface Emits {
 
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
+const tabsStore = useTabsStore()
 
 const isEditing = ref(false)
 const editingName = ref('')
 const nameInputRef = ref<HTMLInputElement | null>(null)
+
+// Context menu state
+const showContextMenu = ref(false)
+const contextMenuPosition = ref<[number, number]>([0, 0])
+
+// Check if there are tabs to the right of this one
+const hasTabsToRight = computed(() => {
+  const openTabs = tabsStore.openTabs
+  return props.tabIndex < openTabs.length - 1
+})
 
 const displayName = computed(() => {
   if (props.tab.name.length > 30) {
@@ -107,6 +155,24 @@ function handleCancel() {
 
 function handleClose() {
   emit('close', props.tab.id)
+}
+
+// Context menu handlers
+function handleContextMenu(e: MouseEvent) {
+  contextMenuPosition.value = [e.clientX, e.clientY]
+  showContextMenu.value = true
+}
+
+function handleCloseOthers() {
+  tabsStore.closeOtherTabs(props.tab.id)
+}
+
+function handleCloseToRight() {
+  tabsStore.closeTabsToRight(props.tab.id)
+}
+
+function handleCloseAll() {
+  tabsStore.closeAllTabs()
 }
 </script>
 
@@ -240,6 +306,26 @@ function handleClose() {
     
     .v-theme--dark & {
       background: rgba(255,255,255,0.1);
+    }
+  }
+}
+
+// Context menu styling
+.tab-context-menu {
+  min-width: 160px;
+  
+  :deep(.v-list-item) {
+    min-height: 32px;
+    font-size: 0.8rem;
+    
+    .v-list-item__prepend {
+      .v-icon {
+        font-size: 16px;
+      }
+    }
+    
+    .v-list-item-title {
+      font-size: 0.8rem;
     }
   }
 }

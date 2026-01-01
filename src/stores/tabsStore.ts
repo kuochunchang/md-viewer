@@ -278,6 +278,49 @@ export const useTabsStore = defineStore('tabs', () => {
     saveToStore()
   }
 
+  // Close all tabs except the specified one
+  function closeOtherTabs(keepTabId: string): void {
+    const tabsToClose = openTabIds.value.filter(id => id !== keepTabId)
+    tabsToClose.forEach(id => {
+      const index = openTabIds.value.indexOf(id)
+      if (index !== -1) {
+        openTabIds.value.splice(index, 1)
+      }
+    })
+    activeTabId.value = keepTabId
+    saveToStore()
+  }
+
+  // Close all tabs to the right of the specified tab
+  function closeTabsToRight(tabId: string): void {
+    const index = openTabIds.value.indexOf(tabId)
+    if (index === -1) return
+
+    // Remove all tabs after the specified index
+    const tabsToClose = openTabIds.value.slice(index + 1)
+    openTabIds.value = openTabIds.value.slice(0, index + 1)
+
+    // If active tab was closed, switch to the current tab
+    if (!openTabIds.value.includes(activeTabId.value || '')) {
+      activeTabId.value = tabId
+    }
+
+    // Clear history for closed tabs
+    tabsToClose.forEach(id => clearTabHistory(id))
+
+    saveToStore()
+  }
+
+  // Close all tabs
+  function closeAllTabs(): void {
+    // Clear history for all tabs
+    openTabIds.value.forEach(id => clearTabHistory(id))
+
+    openTabIds.value = []
+    activeTabId.value = null
+    saveToStore()
+  }
+
   function deleteFile(id: string): void {
     const index = tabs.value.findIndex(tab => tab.id === id)
     if (index === -1) return
@@ -559,6 +602,10 @@ export const useTabsStore = defineStore('tabs', () => {
     canUndoTab,
     canRedoTab,
     clearTabHistory,
-    resetTabHistory
+    resetTabHistory,
+    // Tab context menu functions
+    closeOtherTabs,
+    closeTabsToRight,
+    closeAllTabs
   }
 })
