@@ -26,6 +26,8 @@ export const useTabsStore = defineStore('tabs', () => {
   // Per-tab undo/redo history (not persisted to localStorage)
   const tabHistories = new Map<string, TabHistory>()
   const MAX_HISTORY_SIZE = 100
+  // Reactive trigger to force re-evaluation of canUndo/canRedo
+  const historyVersion = ref(0)
 
   // Helper to get or create history for a tab
   function getOrCreateHistory(tabId: string): TabHistory {
@@ -60,6 +62,9 @@ export const useTabsStore = defineStore('tabs', () => {
       history.stack.shift()
       history.index--
     }
+
+    // Trigger reactivity update
+    historyVersion.value++
   }
 
   // Undo for a specific tab
@@ -76,6 +81,8 @@ export const useTabsStore = defineStore('tabs', () => {
       tab.content = state.content
     }
 
+    // Trigger reactivity update
+    historyVersion.value++
     return state
   }
 
@@ -93,17 +100,23 @@ export const useTabsStore = defineStore('tabs', () => {
       tab.content = state.content
     }
 
+    // Trigger reactivity update
+    historyVersion.value++
     return state
   }
 
-  // Check if undo is available
+  // Check if undo is available (access historyVersion for reactivity)
   function canUndoTab(tabId: string): boolean {
+    // Access historyVersion to ensure reactivity
+    void historyVersion.value
     const history = tabHistories.get(tabId)
     return history ? history.index > 0 : false
   }
 
-  // Check if redo is available
+  // Check if redo is available (access historyVersion for reactivity)
   function canRedoTab(tabId: string): boolean {
+    // Access historyVersion to ensure reactivity
+    void historyVersion.value
     const history = tabHistories.get(tabId)
     return history ? history.index < history.stack.length - 1 : false
   }
