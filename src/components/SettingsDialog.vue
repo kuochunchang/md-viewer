@@ -425,7 +425,128 @@
 
         <v-divider></v-divider>
 
-        <!-- Security Info -->
+        <!-- AI Assistant Section -->
+        <div class="settings-section">
+          <div class="section-header">
+            <v-icon size="small" color="primary" class="mr-2">mdi-robot</v-icon>
+            <span class="section-title">AI Assistant</span>
+          </div>
+          
+          <div class="section-content">
+            <!-- API Key Input -->
+            <div class="setting-item flex-column">
+              <div class="setting-label w-100 mb-2">
+                <span class="setting-name">Gemini API Key</span>
+                <span class="setting-description">
+                  <a href="https://aistudio.google.com/apikey" target="_blank" class="text-primary">
+                    Get from Google AI Studio
+                    <v-icon size="12">mdi-open-in-new</v-icon>
+                  </a>
+                </span>
+              </div>
+              <v-text-field
+                v-model="geminiApiKeyInput"
+                :type="showGeminiApiKey ? 'text' : 'password'"
+                placeholder="Enter your Gemini API Key"
+                variant="outlined"
+                density="compact"
+                hide-details
+                class="w-100"
+              >
+                <template #append-inner>
+                  <v-btn
+                    icon
+                    variant="text"
+                    size="x-small"
+                    @click="showGeminiApiKey = !showGeminiApiKey"
+                  >
+                    <v-icon size="18">{{ showGeminiApiKey ? 'mdi-eye-off' : 'mdi-eye' }}</v-icon>
+                  </v-btn>
+                </template>
+              </v-text-field>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="setting-item d-flex gap-2 mt-3">
+              <v-btn 
+                color="primary" 
+                variant="tonal"
+                size="small"
+                :disabled="!geminiApiKeyInput"
+                :loading="isTestingGeminiKey"
+                @click="handleSaveGeminiKey"
+              >
+                <v-icon start size="16">mdi-content-save</v-icon>
+                Save Key
+              </v-btn>
+              <v-btn 
+                color="secondary" 
+                variant="tonal"
+                size="small"
+                :disabled="!geminiAI.isApiKeySet.value"
+                :loading="isTestingGeminiKey"
+                @click="handleTestGeminiKey"
+              >
+                <v-icon start size="16">mdi-connection</v-icon>
+                Test Connection
+              </v-btn>
+              <v-btn 
+                v-if="geminiAI.isApiKeySet.value"
+                color="error" 
+                variant="text"
+                size="small"
+                @click="handleClearGeminiKey"
+              >
+                <v-icon start size="16">mdi-delete</v-icon>
+                Clear
+              </v-btn>
+            </div>
+
+            <!-- Status Indicator -->
+            <div class="mt-3">
+              <v-chip 
+                v-if="geminiAI.isApiKeySet.value"
+                color="success" 
+                size="small" 
+                variant="tonal"
+              >
+                <v-icon start size="14">mdi-check-circle</v-icon>
+                API Key Configured
+              </v-chip>
+              <v-chip 
+                v-else
+                color="grey" 
+                size="small" 
+                variant="tonal"
+              >
+                <v-icon start size="14">mdi-key-off</v-icon>
+                No API Key
+              </v-chip>
+            </div>
+
+            <!-- Test Result -->
+            <v-alert 
+              v-if="geminiTestResult !== null"
+              :type="geminiTestResult ? 'success' : 'error'" 
+              variant="tonal" 
+              density="compact"
+              class="mt-3"
+              closable
+              @click:close="geminiTestResult = null"
+            >
+              {{ geminiTestResult ? 'API connection successful!' : 'Connection failed. Please check your API key.' }}
+            </v-alert>
+
+            <!-- Usage Info -->
+            <v-alert type="info" variant="tonal" density="compact" class="mt-3">
+              <p class="text-caption mb-0">
+                <strong>How to use:</strong> Select text in the editor, then right-click to access AI features like text improvement and AI-assisted editing.
+              </p>
+            </v-alert>
+          </div>
+        </div>
+
+        <v-divider></v-divider>
         <div class="settings-section">
           <div class="section-header">
             <v-icon size="small" color="primary" class="mr-2">mdi-shield-check</v-icon>
@@ -630,12 +751,14 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
+import { useGeminiAI } from '../composables/useGeminiAI'
 import { useGoogleDocs } from '../composables/useGoogleDocs'
 import { useSettingsStore, type SyncSettings } from '../stores/settingsStore'
 import { useTabsStore } from '../stores/tabsStore'
 
 const settingsStore = useSettingsStore()
 const googleDocs = useGoogleDocs()
+const geminiAI = useGeminiAI()
 const tabsStore = useTabsStore()
 
 // Dialog state
@@ -668,6 +791,12 @@ const isCreatingBackup = ref(false)
 const showBackupSuccess = ref(false)
 const showBackupError = ref(false)
 const backupErrorMessage = ref('')
+
+// Gemini AI state
+const geminiApiKeyInput = ref(geminiAI.getApiKey() || '')
+const showGeminiApiKey = ref(false)
+const isTestingGeminiKey = ref(false)
+const geminiTestResult = ref<boolean | null>(null)
 
 // Local data stats for migration dialog
 const localDataStats = computed(() => ({
@@ -782,6 +911,34 @@ async function handleReauthorize() {
   } finally {
     isSigningIn.value = false
   }
+}
+
+// Gemini AI handlers
+function handleSaveGeminiKey() {
+  if (geminiApiKeyInput.value) {
+    geminiAI.setApiKey(geminiApiKeyInput.value)
+    geminiTestResult.value = null
+  }
+}
+
+async function handleTestGeminiKey() {
+  isTestingGeminiKey.value = true
+  geminiTestResult.value = null
+  
+  try {
+    const success = await geminiAI.testConnection()
+    geminiTestResult.value = success
+  } catch (e) {
+    geminiTestResult.value = false
+  } finally {
+    isTestingGeminiKey.value = false
+  }
+}
+
+function handleClearGeminiKey() {
+  geminiAI.clearApiKey()
+  geminiApiKeyInput.value = ''
+  geminiTestResult.value = null
 }
 
 async function handleManualSync() {

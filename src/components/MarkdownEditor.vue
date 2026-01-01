@@ -146,12 +146,69 @@
       @input="handleInput"
       @scroll="handleScroll"
       @keydown="handleKeydown"
+      @contextmenu="handleContextMenu"
     ></textarea>
+
+    <!-- AI Context Menu -->
+    <v-menu
+      v-model="showContextMenu"
+      :target="contextMenuPosition"
+      location="top start"
+      :close-on-content-click="true"
+    >
+      <v-list density="compact" class="ai-context-menu">
+        <v-list-subheader>AI Assistant</v-list-subheader>
+        <v-list-item
+          prepend-icon="mdi-auto-fix"
+          title="✨ Improve with AI"
+          subtitle="Quick improvement"
+          :disabled="!geminiAI.isApiKeySet.value || geminiAI.isProcessing.value"
+          @click="handleImproveText"
+        ></v-list-item>
+        <v-list-item
+          prepend-icon="mdi-chat"
+          title="💬 Edit with AI Chat..."
+          subtitle="Open dialog for detailed editing"
+          :disabled="!geminiAI.isApiKeySet.value"
+          @click="handleOpenAIDialog"
+        ></v-list-item>
+        <v-divider v-if="!geminiAI.isApiKeySet.value"></v-divider>
+        <v-list-item
+          v-if="!geminiAI.isApiKeySet.value"
+          prepend-icon="mdi-key"
+          title="Configure API Key"
+          subtitle="Set up in Settings"
+          @click="$emit('openSettings')"
+        ></v-list-item>
+      </v-list>
+    </v-menu>
+
+    <!-- AI Processing Indicator -->
+    <v-snackbar
+      v-model="showProcessingIndicator"
+      :timeout="-1"
+      color="primary"
+      location="top"
+    >
+      <div class="d-flex align-center gap-2">
+        <v-progress-circular indeterminate size="20" width="2"></v-progress-circular>
+        <span>AI is improving your text...</span>
+      </div>
+    </v-snackbar>
+
+    <!-- AI Assistant Dialog -->
+    <AIAssistantDialog
+      v-model="showAIDialog"
+      :selected-text="selectedTextForAI"
+      @apply="handleApplyAIText"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed } from 'vue';
+import { computed, ref, watch } from 'vue';
+import { useGeminiAI } from '../composables/useGeminiAI';
+import AIAssistantDialog from './AIAssistantDialog.vue';
 
 interface Props {
   modelValue: string
@@ -165,10 +222,20 @@ const props = withDefaults(defineProps<Props>(), {
 const emit = defineEmits<{
   'update:modelValue': [value: string]
   'scroll': [ratio: number]
+  'openSettings': []
 }>()
 
 const textareaRef = ref<HTMLTextAreaElement | null>(null)
 const localContent = ref(props.modelValue)
+
+// AI features
+const geminiAI = useGeminiAI()
+const showContextMenu = ref(false)
+const contextMenuPosition = ref<[number, number]>([0, 0])
+const selectedTextForAI = ref('')
+const selectionRange = ref<{ start: number; end: number } | null>(null)
+const showAIDialog = ref(false)
+const showProcessingIndicator = computed(() => geminiAI.isProcessing.value)
 
 // History management for Undo/Redo
 interface HistoryState {
@@ -598,6 +665,72 @@ const scrollToRatio = (ratio: number) => {
   }
 }
 
+// AI Context Menu handlers
+const handleContextMenu = (e: MouseEvent) => {
+  const textarea = textareaRef.value
+  if (!textarea) return
+  
+  const start = textarea.selectionStart
+  const end = textarea.selectionEnd
+  
+  // Only show AI menu if there's a selection
+  if (start === end) return
+  
+  e.preventDefault()
+  
+  // Store selection info
+  selectedTextForAI.value = localContent.value.substring(start, end)
+  selectionRange.value = { start, end }
+  
+  // Position the menu at the mouse location
+  contextMenuPosition.value = [e.clientX, e.clientY]
+  showContextMenu.value = true
+}
+
+const handleImproveText = async () => {
+  if (!selectedTextForAI.value || !selectionRange.value) return
+  
+  try {
+    const improvedText = await geminiAI.improveText(selectedTextForAI.value)
+    
+    // Replace the selected text with improved version
+    const before = localContent.value.substring(0, selectionRange.value.start)
+    const after = localContent.value.substring(selectionRange.value.end)
+    const newContent = before + improvedText + after
+    
+    localContent.value = newContent
+    emit('update:modelValue', newContent)
+    pushHistory(newContent, selectionRange.value.start + improvedText.length)
+    
+    // Clear selection info
+    selectionRange.value = null
+    selectedTextForAI.value = ''
+  } catch (e) {
+    console.error('Failed to improve text:', e)
+  }
+}
+
+const handleOpenAIDialog = () => {
+  showAIDialog.value = true
+}
+
+const handleApplyAIText = (newText: string) => {
+  if (!selectionRange.value) return
+  
+  // Replace the selected text with the AI-generated text
+  const before = localContent.value.substring(0, selectionRange.value.start)
+  const after = localContent.value.substring(selectionRange.value.end)
+  const newContent = before + newText + after
+  
+  localContent.value = newContent
+  emit('update:modelValue', newContent)
+  pushHistory(newContent, selectionRange.value.start + newText.length)
+  
+  // Clear selection info
+  selectionRange.value = null
+  selectedTextForAI.value = ''
+}
+
 defineExpose({
   scrollToRatio
 })
@@ -693,6 +826,34 @@ defineExpose({
     &:hover {
       background-color: rgba(var(--v-theme-on-surface), 0.3);
     }
+  }
+}
+
+// AI Context Menu styling
+.ai-context-menu {
+  :deep(.v-list-subheader) {
+    font-size: 11px;
+    min-height: 28px;
+    padding-top: 4px;
+    padding-bottom: 4px;
+  }
+  
+  :deep(.v-list-item) {
+    min-height: 36px;
+    padding-top: 4px;
+    padding-bottom: 4px;
+  }
+  
+  :deep(.v-list-item-title) {
+    font-size: 13px;
+  }
+  
+  :deep(.v-list-item-subtitle) {
+    font-size: 11px;
+  }
+  
+  :deep(.v-list-item__prepend .v-icon) {
+    font-size: 18px;
   }
 }
 </style>
