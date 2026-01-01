@@ -96,6 +96,20 @@
         </v-btn>
       </div>
       
+      <v-divider vertical class="toolbar-divider" />
+      
+      <!-- Format Markdown Button -->
+      <v-btn
+        icon
+        variant="text"
+        size="small"
+        :title="isFormatting ? 'Formatting...' : 'Format Markdown'"
+        :loading="isFormatting"
+        @click="formatMarkdown"
+      >
+        <v-icon size="18">mdi-auto-fix</v-icon>
+      </v-btn>
+      
       <v-spacer />
       
       <!-- Copy Button -->
@@ -206,6 +220,8 @@
 </template>
 
 <script setup lang="ts">
+import markdownPlugin from 'prettier/plugins/markdown';
+import { format as prettierFormat } from 'prettier/standalone';
 import { computed, ref, watch } from 'vue';
 import { useGeminiAI } from '../composables/useGeminiAI';
 import { useTabsStore } from '../stores/tabsStore';
@@ -313,6 +329,43 @@ const handleKeydown = (e: KeyboardEvent) => {
     e.preventDefault()
     redo()
     return
+  }
+}
+
+// Format Markdown functionality
+const isFormatting = ref(false)
+
+const formatMarkdown = async () => {
+  if (isFormatting.value) return
+  
+  try {
+    isFormatting.value = true
+    const textarea = textareaRef.value
+    const cursorPos = textarea?.selectionStart ?? 0
+    
+    const formatted = await prettierFormat(localContent.value, {
+      parser: 'markdown',
+      plugins: [markdownPlugin],
+      proseWrap: 'preserve',
+      tabWidth: 2,
+    })
+    
+    localContent.value = formatted
+    emit('update:modelValue', formatted)
+    pushHistory(formatted, Math.min(cursorPos, formatted.length))
+    
+    // Restore cursor position
+    setTimeout(() => {
+      if (textarea) {
+        textarea.focus()
+        const newPos = Math.min(cursorPos, formatted.length)
+        textarea.setSelectionRange(newPos, newPos)
+      }
+    }, 0)
+  } catch (err) {
+    console.error('Failed to format markdown:', err)
+  } finally {
+    isFormatting.value = false
   }
 }
 
