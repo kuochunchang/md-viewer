@@ -6,6 +6,7 @@ A simple web application for real-time Markdown preview with Mermaid diagram sup
 
 - **Real-time Preview** - Edit Markdown on the left, see rendered output on the right instantly
 - **Mermaid Diagrams** - Full support for flowcharts, sequence diagrams, Gantt charts, and more
+- **AI Writing Assistant** - Select text and right-click to improve or edit with AI powered by Gemini
 - **Multi-tab Interface** - Create multiple documents, drag to reorder, and manage easily
 - **Batch Copy** - Copy markdown content from all open tabs to clipboard
 - **PDF Export** - Download your rendered content as PDF with one click

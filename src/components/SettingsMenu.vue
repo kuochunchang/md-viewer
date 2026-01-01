@@ -192,6 +192,7 @@
                     <li><strong>PDF Export</strong>: Download your preview as a PDF with one click</li>
                     <li><strong>Dark/Light Theme</strong>: Toggle between display themes</li>
                     <li><strong>Font Size Adjustment</strong>: Adjust font size from 10-24px</li>
+                    <li><strong>AI Writing Assistant</strong>: Select text and right-click to improve or edit with AI (requires Gemini API key in Settings)</li>
                 </ul>
             </div>
 
@@ -242,10 +243,10 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useTheme } from 'vuetify'
-import { usePdfExport } from '../composables/usePdfExport'
 import { useGoogleDocs } from '../composables/useGoogleDocs'
-import { useTabsStore } from '../stores/tabsStore'
+import { usePdfExport } from '../composables/usePdfExport'
 import { useSettingsStore } from '../stores/settingsStore'
+import { useTabsStore } from '../stores/tabsStore'
 
 const theme = useTheme()
 const tabsStore = useTabsStore()
