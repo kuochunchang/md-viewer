@@ -38,8 +38,9 @@ export function useMarkdown(content: Ref<string>) {
   }
 
   // Custom inline code renderer
+  // Note: In marked.js v11.x, code is already escaped, so we don't call escapeHtml again
   renderer.codespan = (code: string) => {
-    return `<code class="inline-code">${escapeHtml(code)}</code>`
+    return `<code class="inline-code">${code}</code>`
   }
 
   // Custom link renderer, ensure external links open in new tab
@@ -56,6 +57,12 @@ export function useMarkdown(content: Ref<string>) {
   // Custom table renderer, enhanced table styling with wrapper for scrolling
   renderer.table = (header: string, body: string) => {
     return `<div class="table-container">\n<table class="markdown-table">\n<thead>\n${header}</thead>\n<tbody>\n${body}</tbody>\n</table>\n</div>`
+  }
+
+  // Custom html renderer - escape raw HTML tags to show them as text
+  // This prevents unknown tags like <thinking> from being swallowed by the browser
+  renderer.html = (html: string) => {
+    return escapeHtml(html)
   }
 
   // Custom blockquote renderer
