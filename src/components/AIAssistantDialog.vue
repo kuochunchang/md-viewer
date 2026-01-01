@@ -282,9 +282,14 @@ function applyText(text: string) {
 .quick-actions {
   background-color: transparent;
   
+  .d-flex {
+    gap: 8px !important;
+  }
+  
   :deep(.v-btn) {
     text-transform: none;
     font-weight: 500;
+    margin: 2px;
   }
 }
 
