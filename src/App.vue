@@ -73,6 +73,9 @@
             />
           </template>
         </SplitPane>
+        
+        <!-- Status Bar -->
+        <StatusBar />
       </div>
     </v-main>
 
@@ -113,6 +116,7 @@ import MarkdownPreview from './components/MarkdownPreview.vue'
 import SettingsDialog from './components/SettingsDialog.vue'
 import SettingsMenu from './components/SettingsMenu.vue'
 import SplitPane from './components/SplitPane.vue'
+import StatusBar from './components/StatusBar.vue'
 import TabBar from './components/TabBar.vue'
 import { useGoogleDocs } from './composables/useGoogleDocs'
 import { useSettingsStore } from './stores/settingsStore'
@@ -193,19 +197,29 @@ function setupAutoSync() {
   if (autoSyncTimer) {
     clearInterval(autoSyncTimer)
     autoSyncTimer = null
+    console.log('[AutoSync] Cleared existing timer')
   }
 
   // 檢查是否應該啟用自動同步
-  const shouldAutoSync = 
-    settingsStore.settings.provider === 'google' &&
-    settingsStore.settings.autoSync &&
-    googleDocs.isConnected.value
+  const isGoogleProvider = settingsStore.settings.provider === 'google'
+  const isAutoSyncEnabled = settingsStore.settings.autoSync
+  const isConnected = googleDocs.isConnected.value
+  
+  console.log('[AutoSync] Setup check:', { 
+    provider: settingsStore.settings.provider,
+    autoSync: isAutoSyncEnabled, 
+    isConnected,
+    interval: settingsStore.settings.syncIntervalMinutes 
+  })
+
+  const shouldAutoSync = isGoogleProvider && isAutoSyncEnabled && isConnected
 
   if (shouldAutoSync) {
     const intervalMs = settingsStore.settings.syncIntervalMinutes * 60 * 1000
-    console.log(`[AutoSync] Starting auto-sync, interval: ${settingsStore.settings.syncIntervalMinutes} minutes`)
+    console.log(`[AutoSync] ✅ Starting auto-sync timer, interval: ${settingsStore.settings.syncIntervalMinutes} minutes (${intervalMs}ms)`)
     
     autoSyncTimer = setInterval(async () => {
+      console.log('[AutoSync] Timer triggered, checking conditions...')
       if (googleDocs.isConnected.value && !googleDocs.syncStatus.value.isSyncing) {
         // 只有在資料有變更時才同步
         if (hasDataChanged()) {
@@ -216,38 +230,51 @@ function setupAutoSync() {
           
           if (result === 'success') {
             markAsSynced()
-            console.log('[AutoSync] Sync successful')
+            console.log('[AutoSync] ✅ Sync successful')
           } else if (result === 'conflict') {
-            console.warn('[AutoSync] Conflict detected, skipping sync to protect remote data')
+            console.warn('[AutoSync] ⚠️ Conflict detected, skipping sync to protect remote data')
             showConflictSnackbar.value = true
+          } else {
+            console.error('[AutoSync] ❌ Sync failed with result:', result)
           }
         } else {
           console.log('[AutoSync] No changes, skipping sync')
         }
+      } else {
+        console.log('[AutoSync] Skipped - not connected or already syncing')
       }
     }, intervalMs)
+  } else {
+    console.log('[AutoSync] ⏸️ Auto-sync not enabled:', { isGoogleProvider, isAutoSyncEnabled, isConnected })
   }
 }
 
 // 監聽設定變化以更新 auto-sync
+// 注意：使用 getter 函數監聽響應式值，確保變化能被追蹤
 watch(
-  () => [
-    settingsStore.settings.provider,
-    settingsStore.settings.autoSync,
-    settingsStore.settings.syncIntervalMinutes,
-    googleDocs.isConnected.value
+  [
+    () => settingsStore.settings.provider,
+    () => settingsStore.settings.autoSync,
+    () => settingsStore.settings.syncIntervalMinutes,
+    googleDocs.isConnected  // 直接傳入 computed ref，不要用 .value
   ],
-  () => {
+  (newValues, oldValues) => {
+    console.log('[AutoSync] Watch triggered, values changed:', { old: oldValues, new: newValues })
     setupAutoSync()
-  }
+  },
+  { immediate: false }  // 不立即執行，讓 onMounted 處理初始設置
 )
 
 // Initialization
-onMounted(() => {
+onMounted(async () => {
+  console.log('[App] Mounting...')
   tabsStore.initialize()
   
   // 處理 Google OAuth 回調（如果從 Google 重定向回來）
-  googleDocs.initialize()
+  // 注意：initialize() 是異步的，需要等待完成
+  await googleDocs.initialize()
+  console.log('[App] Google Docs initialized, isConnected:', googleDocs.isConnected.value)
+  
   const oauthSuccess = googleDocs.handleOAuthCallback()
   
   // 如果 OAuth 成功，自動開啟設定對話框讓使用者看到連線狀態
@@ -258,10 +285,9 @@ onMounted(() => {
     }, 500)
   }
 
-  // 延遲設置 auto-sync（確保所有狀態都載入完成）
-  setTimeout(() => {
-    setupAutoSync()
-  }, 1000)
+  // 設置 auto-sync（現在 initialize 已完成，狀態應該正確）
+  console.log('[App] Setting up auto-sync...')
+  setupAutoSync()
 })
 
 // Cleanup
@@ -289,6 +315,12 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   overflow: hidden; // Ensure internal components handle scrolling
+  
+  // SplitPane should take remaining space
+  :deep(.split-pane) {
+    flex: 1;
+    min-height: 0; // Important for flex children to shrink properly
+  }
 }
 
 // Ensure v-main takes available space but doesn't overflow window

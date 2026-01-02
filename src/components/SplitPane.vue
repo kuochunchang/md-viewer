@@ -111,7 +111,7 @@ onUnmounted(() => {
 .split-pane {
   display: flex;
   width: 100%;
-  height: 100%;
+  height: 100%; // Will be overridden by flex: 1 when in flex container
   position: relative;
 
   &.is-vertical {
