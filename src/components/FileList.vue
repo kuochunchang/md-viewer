@@ -3,6 +3,22 @@
     <div class="file-list-header">
       <span class="header-title">DOCUMENTS</span>
       <div class="header-actions">
+        <v-tooltip location="bottom" text="Download as ZIP">
+          <template #activator="{ props }">
+            <v-btn
+              icon
+              variant="text"
+              size="x-small"
+              class="action-btn"
+              :loading="isDownloading"
+              :disabled="isDownloading"
+              v-bind="props"
+              @click="handleDownloadZip"
+            >
+              <v-icon size="18">mdi-download</v-icon>
+            </v-btn>
+          </template>
+        </v-tooltip>
         <v-tooltip location="bottom" text="New Folder">
           <template #activator="{ props }">
             <v-btn
@@ -131,10 +147,12 @@
 <script setup lang="ts">
 import { computed, nextTick, ref } from 'vue'
 import { useTabsStore } from '../stores/tabsStore'
+import { useZipDownload } from '../composables/useZipDownload'
 import ConfirmDialog from './ConfirmDialog.vue'
 import FolderTree from './FolderTree.vue'
 
 const tabsStore = useTabsStore()
+const { isDownloading, downloadAsZip } = useZipDownload()
 
 const rootFolders = computed(() => tabsStore.rootFolders)
 const rootFiles = computed(() => tabsStore.rootTabs)
@@ -227,6 +245,14 @@ function handleAddFile() {
 
 function handleAddFolder() {
   tabsStore.addFolder()
+}
+
+async function handleDownloadZip() {
+  try {
+    await downloadAsZip()
+  } catch (error) {
+    console.error('Download failed:', error)
+  }
 }
 
 function handleFileClick(id: string) {
