@@ -77,6 +77,10 @@ const clientId = ref<string>(GOOGLE_CLIENT_ID)
 const hasConflict = ref(false)  // 是否有未解決的衝突
 const conflictCloudTime = ref<string | null>(null)  // 衝突時雲端的修改時間
 const autoSyncPaused = ref(false)  // 自動同步是否暫停（因衝突）
+
+// OAuth 回調處理的 Promise（讓外部可以等待回調完成）
+let oauthCallbackResolve: ((result: boolean) => void) | null = null
+const oauthCallbackPromise = ref<Promise<boolean> | null>(null)
 // ... (existing code)
 
 // 檢查雲端檔案狀態
@@ -429,6 +433,7 @@ export function useGoogleDocs() {
 
     // 處理 OAuth 回調（從 URL hash 取得 token）
     // 當頁面從 Google 重定向回來時呼叫
+    // 返回 Promise<boolean>，在所有異步操作完成後 resolve
     function handleOAuthCallback(): boolean {
         const hash = window.location.hash
 
@@ -446,6 +451,11 @@ export function useGoogleDocs() {
 
         console.log('[OAuth] Found access_token, processing...')
 
+        // 建立 Promise 讓外部可以等待回調完成
+        oauthCallbackPromise.value = new Promise<boolean>((resolve) => {
+            oauthCallbackResolve = resolve
+        })
+
         try {
             const params = new URLSearchParams(hash.substring(1))
             const token = params.get('access_token')
@@ -462,6 +472,8 @@ export function useGoogleDocs() {
                 syncError.value = 'OAuth state validation failed'
                 localStorage.removeItem('oauth_pending')
                 localStorage.removeItem('oauth_state')
+                oauthCallbackResolve?.(false)
+                oauthCallbackResolve = null
                 return false
             }
 
@@ -480,28 +492,39 @@ export function useGoogleDocs() {
                 // 立即儲存 token
                 accessToken.value = token
 
-                // 取得使用者資訊，然後搜尋現有的同步檔案
-                fetchUserInfo(token).then(async user => {
-                    if (user) {
-                        saveAuth(token, expiresIn, user)
-                        console.log('[OAuth] Successfully logged in as:', user.email)
+                    // 取得使用者資訊，然後搜尋現有的同步檔案
+                    // 使用 async IIFE 並在完成後 resolve Promise
+                    ; (async () => {
+                        try {
+                            const user = await fetchUserInfo(token)
+                            if (user) {
+                                saveAuth(token, expiresIn, user)
+                                console.log('[OAuth] Successfully logged in as:', user.email)
 
-                        // 如果沒有 syncFileId，嘗試搜尋現有的同步檔案
-                        if (!syncFileId.value) {
-                            try {
-                                const existingFileId = await findExistingSyncFile()
-                                if (existingFileId) {
-                                    console.log('[OAuth] Found existing sync file:', existingFileId)
-                                    saveSyncFileId(existingFileId)
+                                // 如果沒有 syncFileId，嘗試搜尋現有的同步檔案
+                                if (!syncFileId.value) {
+                                    try {
+                                        const existingFileId = await findExistingSyncFile()
+                                        if (existingFileId) {
+                                            console.log('[OAuth] Found existing sync file:', existingFileId)
+                                            saveSyncFileId(existingFileId)
+                                        }
+                                    } catch (e) {
+                                        console.warn('[OAuth] Failed to search for existing sync file', e)
+                                    }
                                 }
-                            } catch (e) {
-                                console.warn('[OAuth] Failed to search for existing sync file', e)
+                            } else {
+                                console.error('[OAuth] Failed to get user info')
                             }
+                        } catch (e) {
+                            console.error('[OAuth] Error during post-auth processing', e)
+                        } finally {
+                            // 所有異步操作完成，resolve Promise
+                            console.log('[OAuth] All post-auth operations completed')
+                            oauthCallbackResolve?.(true)
+                            oauthCallbackResolve = null
                         }
-                    } else {
-                        console.error('[OAuth] Failed to get user info')
-                    }
-                })
+                    })()
 
                 return true
             }
@@ -510,6 +533,8 @@ export function useGoogleDocs() {
             syncError.value = 'Error processing login callback'
             localStorage.removeItem('oauth_pending')
             localStorage.removeItem('oauth_state')
+            oauthCallbackResolve?.(false)
+            oauthCallbackResolve = null
         }
 
         return false
@@ -1396,6 +1421,8 @@ export function useGoogleDocs() {
         hasConflict: computed(() => hasConflict.value),
         autoSyncPaused: computed(() => autoSyncPaused.value),
         conflictCloudTime: computed(() => conflictCloudTime.value),
+        // OAuth callback promise (for waiting until all post-auth operations complete)
+        oauthCallbackPromise: computed(() => oauthCallbackPromise.value),
 
         // Actions
         initialize,
