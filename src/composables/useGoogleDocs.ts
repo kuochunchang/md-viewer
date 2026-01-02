@@ -30,6 +30,8 @@ const STORAGE_KEYS = {
     get BACKUP_FOLDER_ID() { return `md-viewer-google-backup-folder-id-${getHostname()}` },
     // 上次備份日期
     get LAST_BACKUP_DATE() { return `md-viewer-google-last-backup-date-${getHostname()}` },
+    // 上次同步時間
+    get LAST_SYNC_TIME() { return `md-viewer-google-last-sync-time-${getHostname()}` },
     CLIENT_ID: 'md-viewer-google-client-id'
 }
 
@@ -105,6 +107,7 @@ function loadStoredAuth() {
         const storedFolderId = localStorage.getItem(STORAGE_KEYS.SYNC_FOLDER_ID)
         const storedBackupFolderId = localStorage.getItem(STORAGE_KEYS.BACKUP_FOLDER_ID)
         const storedClientId = localStorage.getItem(STORAGE_KEYS.CLIENT_ID)
+        const storedLastSyncTime = localStorage.getItem(STORAGE_KEYS.LAST_SYNC_TIME)
 
         if (storedClientId) {
             clientId.value = storedClientId
@@ -116,6 +119,11 @@ function loadStoredAuth() {
         }
         if (storedBackupFolderId) {
             backupFolderId.value = storedBackupFolderId
+        }
+
+        // 載入上次同步時間
+        if (storedLastSyncTime) {
+            lastSyncTime.value = parseInt(storedLastSyncTime, 10)
         }
 
         if (storedToken && storedExpiry) {
@@ -207,6 +215,11 @@ function saveSyncFolderId(folderId: string) {
 function saveBackupFolderId(folderId: string) {
     localStorage.setItem(STORAGE_KEYS.BACKUP_FOLDER_ID, folderId)
     backupFolderId.value = folderId
+}
+
+function saveLastSyncTime(time: number) {
+    localStorage.setItem(STORAGE_KEYS.LAST_SYNC_TIME, time.toString())
+    lastSyncTime.value = time
 }
 
 export function useGoogleDocs() {
@@ -596,7 +609,7 @@ export function useGoogleDocs() {
                 }
             }
 
-            lastSyncTime.value = Date.now()
+            saveLastSyncTime(Date.now())
             return 'success'
         } catch (error) {
             console.error('Sync failed:', error)
@@ -636,7 +649,7 @@ export function useGoogleDocs() {
             }
 
             if (content) {
-                lastSyncTime.value = Date.now()
+                saveLastSyncTime(Date.now())
                 return JSON.parse(content)
             }
             return null
@@ -1186,7 +1199,7 @@ export function useGoogleDocs() {
                 }
             }
 
-            lastSyncTime.value = Date.now()
+            saveLastSyncTime(Date.now())
             return 'success'
         } catch (error) {
             console.error('Sync failed:', error)
