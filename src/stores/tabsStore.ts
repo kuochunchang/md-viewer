@@ -183,6 +183,22 @@ export const useTabsStore = defineStore('tabs', () => {
     return newTab.id
   }
 
+  // Add tab with specific content (for importing files)
+  function addTabWithContent(name: string, content: string, folderId?: string | null): string {
+    const newTab: Tab = {
+      id: `tab-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+      name: name,
+      content: content,
+      createdAt: Date.now(),
+      folderId: folderId ?? null
+    }
+    tabs.value.push(newTab)
+    openTabIds.value.push(newTab.id)
+    activeTabId.value = newTab.id
+    saveToStore()
+    return newTab.id
+  }
+
   function addFolder(name?: string, parentId?: string | null): string {
     const newFolder: Folder = {
       id: `folder-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
@@ -580,6 +596,7 @@ export const useTabsStore = defineStore('tabs', () => {
     getChildFolders,
     getTabsInFolder,
     addTab,
+    addTabWithContent,
     addFolder,
     renameFolder,
     deleteFolder,

@@ -19,6 +19,22 @@
             </v-btn>
           </template>
         </v-tooltip>
+        <v-tooltip location="bottom" text="Upload Folder">
+          <template #activator="{ props }">
+            <v-btn
+              icon
+              variant="text"
+              size="x-small"
+              class="action-btn"
+              :loading="isUploading"
+              :disabled="isUploading"
+              v-bind="props"
+              @click="handleUploadFolder"
+            >
+              <v-icon size="18">mdi-folder-upload-outline</v-icon>
+            </v-btn>
+          </template>
+        </v-tooltip>
         <v-tooltip location="bottom" text="New Folder">
           <template #activator="{ props }">
             <v-btn
@@ -146,13 +162,16 @@
 
 <script setup lang="ts">
 import { computed, nextTick, ref } from 'vue'
-import { useTabsStore } from '../stores/tabsStore'
+import { useFolderUpload } from '../composables/useFolderUpload'
 import { useZipDownload } from '../composables/useZipDownload'
+import { useTabsStore } from '../stores/tabsStore'
 import ConfirmDialog from './ConfirmDialog.vue'
 import FolderTree from './FolderTree.vue'
 
 const tabsStore = useTabsStore()
 const { isDownloading, downloadAsZip } = useZipDownload()
+const { uploadFolder } = useFolderUpload()
+const isUploading = ref(false)
 
 const rootFolders = computed(() => tabsStore.rootFolders)
 const rootFiles = computed(() => tabsStore.rootTabs)
@@ -245,6 +264,18 @@ function handleAddFile() {
 
 function handleAddFolder() {
   tabsStore.addFolder()
+}
+
+async function handleUploadFolder() {
+  try {
+    isUploading.value = true
+    const result = await uploadFolder()
+    console.log(`Uploaded ${result.folders} folders and ${result.files} files`)
+  } catch (error) {
+    console.error('Upload failed:', error)
+  } finally {
+    isUploading.value = false
+  }
 }
 
 async function handleDownloadZip() {
