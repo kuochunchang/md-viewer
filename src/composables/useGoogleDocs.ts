@@ -258,13 +258,42 @@ export function useGoogleDocs() {
         // 如果已登入但沒有 syncFileId，嘗試搜尋現有的同步檔案
         if (accessToken.value && !syncFileId.value) {
             try {
-                const existingFileId = await findExistingSyncFile()
+                // 先搜尋舊格式
+                let existingFileId = await findExistingSyncFile()
                 if (existingFileId) {
-                    console.log('[Sync] Found existing sync file during init:', existingFileId)
+                    console.log('[Sync] Found existing sync file during init (legacy format):', existingFileId)
                     saveSyncFileId(existingFileId)
                     // 取得檔案狀態
                     const status = await checkCloudFileStatus(existingFileId)
                     lastCloudModifiedTime.value = status.modifiedTime
+                } else {
+                    // 再搜尋新格式（資料夾結構）
+                    console.log('[Sync] No legacy format file found during init, searching for folder structure...')
+                    const folderData = await findExistingSyncFileInFolderStructure()
+
+                    if (folderData.fileId) {
+                        console.log('[Sync] Found existing sync file in folder structure during init:', folderData.fileId)
+                        saveSyncFileId(folderData.fileId)
+
+                        // 也保存資料夾 ID
+                        if (folderData.folderId) {
+                            saveSyncFolderId(folderData.folderId)
+                        }
+                        if (folderData.backupFolderId) {
+                            saveBackupFolderId(folderData.backupFolderId)
+                        }
+
+                        // 取得檔案狀態
+                        const status = await checkCloudFileStatus(folderData.fileId)
+                        lastCloudModifiedTime.value = status.modifiedTime
+                    } else if (folderData.folderId) {
+                        // 資料夾存在但沒有檔案
+                        console.log('[Sync] Found sync folder but no data file during init:', folderData.folderId)
+                        saveSyncFolderId(folderData.folderId)
+                        if (folderData.backupFolderId) {
+                            saveBackupFolderId(folderData.backupFolderId)
+                        }
+                    }
                 }
             } catch (e) {
                 console.warn('[Sync] Failed to search for existing sync file during init', e)
@@ -504,10 +533,37 @@ export function useGoogleDocs() {
                                 // 如果沒有 syncFileId，嘗試搜尋現有的同步檔案
                                 if (!syncFileId.value) {
                                     try {
-                                        const existingFileId = await findExistingSyncFile()
+                                        // 先搜尋舊格式（直接在根目錄的檔案）
+                                        let existingFileId = await findExistingSyncFile()
+
                                         if (existingFileId) {
-                                            console.log('[OAuth] Found existing sync file:', existingFileId)
+                                            console.log('[OAuth] Found existing sync file (legacy format):', existingFileId)
                                             saveSyncFileId(existingFileId)
+                                        } else {
+                                            // 再搜尋新格式（資料夾結構）
+                                            console.log('[OAuth] No legacy format file found, searching for folder structure...')
+                                            const folderData = await findExistingSyncFileInFolderStructure()
+
+                                            if (folderData.fileId) {
+                                                console.log('[OAuth] Found existing sync file in folder structure:', folderData.fileId)
+                                                saveSyncFileId(folderData.fileId)
+
+                                                // 也保存資料夾 ID，這樣後續同步可以直接使用
+                                                if (folderData.folderId) {
+                                                    saveSyncFolderId(folderData.folderId)
+                                                }
+                                                if (folderData.backupFolderId) {
+                                                    saveBackupFolderId(folderData.backupFolderId)
+                                                }
+                                            } else if (folderData.folderId) {
+                                                // 資料夾存在但沒有檔案（可能是用戶刪除了資料）
+                                                // 仍然保存資料夾 ID
+                                                console.log('[OAuth] Found sync folder but no data file:', folderData.folderId)
+                                                saveSyncFolderId(folderData.folderId)
+                                                if (folderData.backupFolderId) {
+                                                    saveBackupFolderId(folderData.backupFolderId)
+                                                }
+                                            }
                                         }
                                     } catch (e) {
                                         console.warn('[OAuth] Failed to search for existing sync file', e)
@@ -758,6 +814,90 @@ export function useGoogleDocs() {
         } catch (error) {
             console.warn('[Sync] Error searching for existing file:', error)
             return null
+        }
+    }
+
+    // 搜尋新格式的資料夾結構中是否有同步檔案
+    async function findExistingSyncFileInFolderStructure(): Promise<{
+        fileId: string | null
+        folderId: string | null
+        backupFolderId: string | null
+    }> {
+        const folderName = getSyncFolderName()
+
+        try {
+            // 搜尋主資料夾
+            const folderQuery = encodeURIComponent(`name='${folderName}' and mimeType='application/vnd.google-apps.folder' and trashed=false`)
+            const folderResponse = await fetch(
+                `https://www.googleapis.com/drive/v3/files?q=${folderQuery}&fields=files(id,name)`,
+                {
+                    headers: {
+                        'Authorization': `Bearer ${accessToken.value}`
+                    }
+                }
+            )
+
+            if (!folderResponse.ok) {
+                console.warn('[Sync] Failed to search for sync folder:', folderResponse.status)
+                return { fileId: null, folderId: null, backupFolderId: null }
+            }
+
+            const folderResult = await folderResponse.json()
+            if (!folderResult.files || folderResult.files.length === 0) {
+                console.log('[Sync] No sync folder found')
+                return { fileId: null, folderId: null, backupFolderId: null }
+            }
+
+            const folderId = folderResult.files[0].id
+            console.log('[Sync] Found sync folder:', folderId)
+
+            // 搜尋資料夾中的 data.json 檔案
+            const fileQuery = encodeURIComponent(`name='${DATA_FILE_NAME}' and '${folderId}' in parents and trashed=false`)
+            const fileResponse = await fetch(
+                `https://www.googleapis.com/drive/v3/files?q=${fileQuery}&fields=files(id,name,modifiedTime)`,
+                {
+                    headers: {
+                        'Authorization': `Bearer ${accessToken.value}`
+                    }
+                }
+            )
+
+            if (!fileResponse.ok) {
+                console.warn('[Sync] Failed to search for data file in folder:', fileResponse.status)
+                return { fileId: null, folderId, backupFolderId: null }
+            }
+
+            const fileResult = await fileResponse.json()
+            const fileId = fileResult.files && fileResult.files.length > 0 ? fileResult.files[0].id : null
+
+            if (fileId) {
+                console.log('[Sync] Found data file in folder:', fileId)
+            }
+
+            // 搜尋備份資料夾
+            let bkFolderId: string | null = null
+            const backupFolderQuery = encodeURIComponent(`name='${BACKUP_FOLDER_NAME}' and mimeType='application/vnd.google-apps.folder' and '${folderId}' in parents and trashed=false`)
+            const backupResponse = await fetch(
+                `https://www.googleapis.com/drive/v3/files?q=${backupFolderQuery}&fields=files(id,name)`,
+                {
+                    headers: {
+                        'Authorization': `Bearer ${accessToken.value}`
+                    }
+                }
+            )
+
+            if (backupResponse.ok) {
+                const backupResult = await backupResponse.json()
+                if (backupResult.files && backupResult.files.length > 0) {
+                    bkFolderId = backupResult.files[0].id
+                    console.log('[Sync] Found backup folder:', bkFolderId)
+                }
+            }
+
+            return { fileId, folderId, backupFolderId: bkFolderId }
+        } catch (error) {
+            console.warn('[Sync] Error searching for folder structure:', error)
+            return { fileId: null, folderId: null, backupFolderId: null }
         }
     }
 
