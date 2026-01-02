@@ -73,7 +73,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useGoogleDocs } from '../composables/useGoogleDocs'
 import { useSettingsStore } from '../stores/settingsStore'
 import { useTabsStore } from '../stores/tabsStore'
@@ -81,6 +81,24 @@ import { useTabsStore } from '../stores/tabsStore'
 const tabsStore = useTabsStore()
 const settingsStore = useSettingsStore()
 const googleDocs = useGoogleDocs()
+
+// Reactive time for auto-updating relative timestamps
+const currentTime = ref(Date.now())
+let timeUpdateInterval: ReturnType<typeof setInterval> | null = null
+
+onMounted(() => {
+  // Update currentTime every 30 seconds for relative time display
+  timeUpdateInterval = setInterval(() => {
+    currentTime.value = Date.now()
+  }, 30000)
+})
+
+onUnmounted(() => {
+  if (timeUpdateInterval) {
+    clearInterval(timeUpdateInterval)
+    timeUpdateInterval = null
+  }
+})
 
 // Active Tab
 const activeTab = computed(() => tabsStore.activeTab)
@@ -148,30 +166,45 @@ const syncStatusText = computed(() => {
   return 'Disconnected'
 })
 
-// Last Sync Time
+// Last Sync Time (auto-updates every 30 seconds via currentTime dependency)
 const lastSyncTimeText = computed(() => {
   const lastSync = googleDocs.syncStatus.value.lastSyncTime
   if (!lastSync || !isGoogleProvider.value) return null
   
-  const now = Date.now()
+  // Use currentTime as dependency to trigger re-computation
+  const now = currentTime.value
   const diff = now - lastSync
   
+  // 小於 1 分鐘：顯示 "Just now"
   if (diff < 60000) {
     return 'Just now'
-  } else if (diff < 3600000) {
+  }
+  // 小於 1 小時：顯示 "Xm ago"
+  else if (diff < 3600000) {
     const minutes = Math.floor(diff / 60000)
     return `${minutes}m ago`
-  } else if (diff < 86400000) {
-    const hours = Math.floor(diff / 3600000)
-    return `${hours}h ago`
-  } else {
-    const date = new Date(lastSync)
-    return date.toLocaleDateString('en-US', { 
-      month: 'short', 
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    })
+  }
+  // 超過 1 小時：顯示實際時間（例如 "11:34" 或 "Jan 2, 11:34"）
+  else {
+    const syncDate = new Date(lastSync)
+    const nowDate = new Date(now)
+    const isToday = syncDate.toDateString() === nowDate.toDateString()
+    
+    if (isToday) {
+      return syncDate.toLocaleTimeString('en-US', { 
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      })
+    } else {
+      return syncDate.toLocaleDateString('en-US', { 
+        month: 'short', 
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      })
+    }
   }
 })
 
