@@ -2,152 +2,160 @@
   <div class="markdown-editor">
     <!-- Toolbar -->
     <div class="editor-toolbar">
-      <div class="toolbar-group">
-        <v-btn
-          icon
-          variant="text"
-          size="small"
-          title="粗體 (Bold)"
-          @click="insertFormat('bold')"
-        >
-          <v-icon size="18">mdi-format-bold</v-icon>
-        </v-btn>
-        <v-btn
-          icon
-          variant="text"
-          size="small"
-          title="斜體 (Italic)"
-          @click="insertFormat('italic')"
-        >
-          <v-icon size="18">mdi-format-italic</v-icon>
-        </v-btn>
-        <v-btn
-          icon
-          variant="text"
-          size="small"
-          title="底線 (Underline)"
-          @click="insertFormat('underline')"
-        >
-          <v-icon size="18">mdi-format-underline</v-icon>
-        </v-btn>
-        <v-btn
-          icon
-          variant="text"
-          size="small"
-          title="刪除線 (Strikethrough)"
-          @click="insertFormat('strikethrough')"
-        >
-          <v-icon size="18">mdi-format-strikethrough</v-icon>
-        </v-btn>
-      </div>
-      
-      <v-divider vertical class="toolbar-divider" />
-      
-      <div class="toolbar-group">
-        <v-btn
-          variant="text"
-          size="small"
-          title="標題 1"
-          class="heading-btn"
-          @click="insertFormat('h1')"
-        >
-          H1
-        </v-btn>
-        <v-btn
-          variant="text"
-          size="small"
-          title="標題 2"
-          class="heading-btn"
-          @click="insertFormat('h2')"
-        >
-          H2
-        </v-btn>
-        <v-btn
-          variant="text"
-          size="small"
-          title="標題 3"
-          class="heading-btn"
-          @click="insertFormat('h3')"
-        >
-          H3
-        </v-btn>
-      </div>
-      
-      <v-divider vertical class="toolbar-divider" />
-      
-      <div class="toolbar-group">
-        <v-btn
-          icon
-          variant="text"
-          size="small"
-          title="項目符號列表 (Bullet List)"
-          @click="insertFormat('bullet')"
-        >
-          <v-icon size="18">mdi-format-list-bulleted</v-icon>
-        </v-btn>
-        <v-btn
-          icon
-          variant="text"
-          size="small"
-          title="編號列表 (Numbered List)"
-          @click="insertFormat('numbered')"
-        >
-          <v-icon size="18">mdi-format-list-numbered</v-icon>
-        </v-btn>
-      </div>
-      
-      <v-divider vertical class="toolbar-divider" />
-      
-      <!-- Format Markdown Button -->
-      <v-btn
-        icon
-        variant="text"
-        size="small"
-        :title="isFormatting ? 'Formatting...' : 'Format Markdown'"
-        :loading="isFormatting"
-        @click="formatMarkdown"
+      <div 
+        ref="toolbarScrollRef"
+        class="toolbar-scroll-container"
+        :class="{ 'can-scroll-left': canScrollLeft, 'can-scroll-right': canScrollRight }"
+        @mousedown="startToolbarDrag"
+        @wheel.prevent="handleToolbarWheel"
       >
-        <v-icon size="18">mdi-auto-fix</v-icon>
-      </v-btn>
-      
-      <v-spacer />
-      
-      <!-- Copy Button -->
-      <v-btn
-        icon
-        variant="text"
-        size="small"
-        :title="copied ? 'Copied!' : 'Copy Markdown'"
-        :color="copied ? 'success' : undefined"
-        @click="copyToClipboard"
-      >
-        <v-icon size="18">{{ copied ? 'mdi-check' : 'mdi-content-copy' }}</v-icon>
-      </v-btn>
-      
-      <v-divider vertical class="toolbar-divider" />
-      
-      <!-- Undo/Redo Buttons -->
-      <div class="toolbar-group">
-        <v-btn
-          icon
-          variant="text"
-          size="small"
-          title="復原 (Ctrl+Z)"
-          :disabled="!canUndo"
-          @click="undo"
-        >
-          <v-icon size="18">mdi-undo</v-icon>
-        </v-btn>
-        <v-btn
-          icon
-          variant="text"
-          size="small"
-          title="重做 (Ctrl+Shift+Z)"
-          :disabled="!canRedo"
-          @click="redo"
-        >
-          <v-icon size="18">mdi-redo</v-icon>
-        </v-btn>
+        <div class="toolbar-content">
+          <div class="toolbar-group">
+            <v-btn
+              icon
+              variant="text"
+              size="small"
+              title="粗體 (Bold)"
+              @click="insertFormat('bold')"
+            >
+              <v-icon size="18">mdi-format-bold</v-icon>
+            </v-btn>
+            <v-btn
+              icon
+              variant="text"
+              size="small"
+              title="斜體 (Italic)"
+              @click="insertFormat('italic')"
+            >
+              <v-icon size="18">mdi-format-italic</v-icon>
+            </v-btn>
+            <v-btn
+              icon
+              variant="text"
+              size="small"
+              title="底線 (Underline)"
+              @click="insertFormat('underline')"
+            >
+              <v-icon size="18">mdi-format-underline</v-icon>
+            </v-btn>
+            <v-btn
+              icon
+              variant="text"
+              size="small"
+              title="刪除線 (Strikethrough)"
+              @click="insertFormat('strikethrough')"
+            >
+              <v-icon size="18">mdi-format-strikethrough</v-icon>
+            </v-btn>
+          </div>
+          
+          <v-divider vertical class="toolbar-divider" />
+          
+          <div class="toolbar-group">
+            <v-btn
+              variant="text"
+              size="small"
+              title="標題 1"
+              class="heading-btn"
+              @click="insertFormat('h1')"
+            >
+              H1
+            </v-btn>
+            <v-btn
+              variant="text"
+              size="small"
+              title="標題 2"
+              class="heading-btn"
+              @click="insertFormat('h2')"
+            >
+              H2
+            </v-btn>
+            <v-btn
+              variant="text"
+              size="small"
+              title="標題 3"
+              class="heading-btn"
+              @click="insertFormat('h3')"
+            >
+              H3
+            </v-btn>
+          </div>
+          
+          <v-divider vertical class="toolbar-divider" />
+          
+          <div class="toolbar-group">
+            <v-btn
+              icon
+              variant="text"
+              size="small"
+              title="項目符號列表 (Bullet List)"
+              @click="insertFormat('bullet')"
+            >
+              <v-icon size="18">mdi-format-list-bulleted</v-icon>
+            </v-btn>
+            <v-btn
+              icon
+              variant="text"
+              size="small"
+              title="編號列表 (Numbered List)"
+              @click="insertFormat('numbered')"
+            >
+              <v-icon size="18">mdi-format-list-numbered</v-icon>
+            </v-btn>
+          </div>
+          
+          <v-divider vertical class="toolbar-divider" />
+          
+          <!-- Format Markdown Button -->
+          <v-btn
+            icon
+            variant="text"
+            size="small"
+            :title="isFormatting ? 'Formatting...' : 'Format Markdown'"
+            :loading="isFormatting"
+            @click="formatMarkdown"
+          >
+            <v-icon size="18">mdi-auto-fix</v-icon>
+          </v-btn>
+          
+          <!-- Copy Button -->
+          <v-btn
+            icon
+            variant="text"
+            size="small"
+            :title="copied ? 'Copied!' : 'Copy Markdown'"
+            :color="copied ? 'success' : undefined"
+            @click="copyToClipboard"
+          >
+            <v-icon size="18">{{ copied ? 'mdi-check' : 'mdi-content-copy' }}</v-icon>
+          </v-btn>
+          
+          <v-divider vertical class="toolbar-divider" />
+          
+          <!-- Undo/Redo Buttons -->
+          <div class="toolbar-group">
+            <v-btn
+              icon
+              variant="text"
+              size="small"
+              title="復原 (Ctrl+Z)"
+              :disabled="!canUndo"
+              @click="undo"
+            >
+              <v-icon size="18">mdi-undo</v-icon>
+            </v-btn>
+            <v-btn
+              icon
+              variant="text"
+              size="small"
+              title="重做 (Ctrl+Shift+Z)"
+              :disabled="!canRedo"
+              @click="redo"
+            >
+              <v-icon size="18">mdi-redo</v-icon>
+            </v-btn>
+          </div>
+        </div>
       </div>
     </div>
     
@@ -222,7 +230,7 @@
 <script setup lang="ts">
 import markdownPlugin from 'prettier/plugins/markdown';
 import { format as prettierFormat } from 'prettier/standalone';
-import { computed, ref, watch } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useGeminiAI } from '../composables/useGeminiAI';
 import { useTabsStore } from '../stores/tabsStore';
 import AIAssistantDialog from './AIAssistantDialog.vue';
@@ -245,6 +253,87 @@ const emit = defineEmits<{
 
 const textareaRef = ref<HTMLTextAreaElement | null>(null)
 const localContent = ref(props.modelValue)
+
+// Toolbar scroll functionality
+const toolbarScrollRef = ref<HTMLDivElement | null>(null)
+const canScrollLeft = ref(false)
+const canScrollRight = ref(false)
+const isDraggingToolbar = ref(false)
+const dragStartX = ref(0)
+const scrollStartX = ref(0)
+
+const updateScrollIndicators = () => {
+  const el = toolbarScrollRef.value
+  if (!el) return
+  
+  canScrollLeft.value = el.scrollLeft > 0
+  canScrollRight.value = el.scrollLeft < el.scrollWidth - el.clientWidth - 1
+}
+
+const handleToolbarWheel = (e: WheelEvent) => {
+  const el = toolbarScrollRef.value
+  if (!el) return
+  
+  // Convert vertical scroll to horizontal
+  el.scrollLeft += e.deltaY || e.deltaX
+  updateScrollIndicators()
+}
+
+const startToolbarDrag = (e: MouseEvent) => {
+  const el = toolbarScrollRef.value
+  if (!el) return
+  
+  // Only start drag if there's overflow
+  if (el.scrollWidth <= el.clientWidth) return
+  
+  isDraggingToolbar.value = true
+  dragStartX.value = e.clientX
+  scrollStartX.value = el.scrollLeft
+  
+  el.style.cursor = 'grabbing'
+  el.style.userSelect = 'none'
+  
+  document.addEventListener('mousemove', handleToolbarDragMove)
+  document.addEventListener('mouseup', stopToolbarDrag)
+}
+
+const handleToolbarDragMove = (e: MouseEvent) => {
+  if (!isDraggingToolbar.value) return
+  
+  const el = toolbarScrollRef.value
+  if (!el) return
+  
+  const dx = e.clientX - dragStartX.value
+  el.scrollLeft = scrollStartX.value - dx
+  updateScrollIndicators()
+}
+
+const stopToolbarDrag = () => {
+  isDraggingToolbar.value = false
+  
+  const el = toolbarScrollRef.value
+  if (el) {
+    el.style.cursor = ''
+    el.style.userSelect = ''
+  }
+  
+  document.removeEventListener('mousemove', handleToolbarDragMove)
+  document.removeEventListener('mouseup', stopToolbarDrag)
+}
+
+onMounted(() => {
+  // Initial check for scroll indicators
+  setTimeout(updateScrollIndicators, 100)
+  
+  // Update on resize
+  window.addEventListener('resize', updateScrollIndicators)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', updateScrollIndicators)
+  document.removeEventListener('mousemove', handleToolbarDragMove)
+  document.removeEventListener('mouseup', stopToolbarDrag)
+})
 
 // AI features
 const geminiAI = useGeminiAI()
@@ -791,22 +880,70 @@ defineExpose({
 .editor-toolbar {
   display: flex;
   align-items: center;
-  gap: 4px;
   padding: 8px 12px;
   border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.1);
   background-color: rgba(var(--v-theme-surface), 0.5);
   flex-shrink: 0;
+  overflow: hidden;
+  position: relative;
+  
+  // Scroll container
+  .toolbar-scroll-container {
+    display: flex;
+    flex: 1;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none; // Firefox
+    -ms-overflow-style: none; // IE/Edge
+    cursor: grab;
+    position: relative;
+    
+    &::-webkit-scrollbar {
+      display: none; // Chrome/Safari
+    }
+    
+    // Scroll fade indicators
+    &.can-scroll-left::before,
+    &.can-scroll-right::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 20px;
+      pointer-events: none;
+      z-index: 1;
+    }
+    
+    &.can-scroll-left::before {
+      left: 0;
+      background: linear-gradient(to right, rgba(var(--v-theme-surface), 0.9), transparent);
+    }
+    
+    &.can-scroll-right::after {
+      right: 0;
+      background: linear-gradient(to left, rgba(var(--v-theme-surface), 0.9), transparent);
+    }
+  }
+  
+  .toolbar-content {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+  }
   
   .toolbar-group {
     display: flex;
     align-items: center;
     gap: 2px;
+    flex-shrink: 0;
   }
   
   .toolbar-divider {
     height: 24px;
     margin: 0 8px;
     opacity: 0.3;
+    flex-shrink: 0;
   }
   
   .heading-btn {
@@ -818,6 +955,7 @@ defineExpose({
   .v-btn {
     opacity: 0.7;
     transition: opacity 0.2s ease, background-color 0.2s ease;
+    flex-shrink: 0;
     
     &:hover {
       opacity: 1;
