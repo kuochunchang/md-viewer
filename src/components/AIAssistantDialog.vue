@@ -122,7 +122,7 @@
           rows="2"
           hide-details
           :disabled="geminiAI.isProcessing.value"
-          @keydown.enter.exact.prevent="sendMessage"
+          @keydown.enter.exact.prevent="handleEnter"
           @keydown.enter.shift.prevent="userInput += '\n'"
         ></v-textarea>
         <div class="d-flex justify-end mt-3 gap-2">
@@ -212,6 +212,11 @@ async function handleQuickAction(action: { id: string; label: string; prompt: st
   } catch (e) {
     console.error('Quick action failed:', e)
   }
+}
+
+async function handleEnter(event: KeyboardEvent) {
+  if (event.isComposing) return
+  await sendMessage()
 }
 
 async function sendMessage() {
