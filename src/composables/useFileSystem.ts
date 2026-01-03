@@ -38,6 +38,11 @@ export interface UseFileSystemReturn {
     clearError: () => void
 }
 
+// Global mappings between tabs and file paths
+// This ensures state is shared across multiple usages of the composable
+const tabToFilePath = new Map<string, string>()
+const filePathToTab = new Map<string, string>()
+
 export function useFileSystem(): UseFileSystemReturn {
     const fileSystemStore = useFileSystemStore()
     const tabsStore = useTabsStore()
@@ -51,10 +56,6 @@ export function useFileSystem(): UseFileSystemReturn {
         error,
         entries
     } = storeToRefs(fileSystemStore)
-
-    // Map from tab ID to file path (for local files)
-    const tabToFilePath = new Map<string, string>()
-    const filePathToTab = new Map<string, string>()
 
     // Open a local file and create a tab for it
     async function openFile(file: LocalFile): Promise<void> {
@@ -95,22 +96,32 @@ export function useFileSystem(): UseFileSystemReturn {
         const filePath = tabToFilePath.get(activeTab.id)
         if (!filePath) {
             // This tab doesn't have a corresponding local file
-            // Could create a new file, but for now just return false
             return false
         }
 
         const file = fileSystemStore.findFileByPath(filePath)
         if (!file) return false
 
-        const success = await fileSystemStore.saveFile(file.handle, activeTab.content)
+        try {
+            // Request permission if needed
+            const permission = await file.handle.queryPermission({ mode: 'readwrite' })
+            if (permission !== 'granted') {
+                const newPermission = await file.handle.requestPermission({ mode: 'readwrite' })
+                if (newPermission !== 'granted') return false
+            }
 
-        if (success) {
-            // Update the file's lastModified (trigger reactivity)
-            const updatedFile = await file.handle.getFile()
-            file.lastModified = updatedFile.lastModified
+            const success = await fileSystemStore.saveFile(file.handle, activeTab.content)
+
+            if (success) {
+                // Update the file's lastModified (trigger reactivity)
+                const updatedFile = await file.handle.getFile()
+                file.lastModified = updatedFile.lastModified
+            }
+            return success
+        } catch (error) {
+            console.error('[FileSystem] Save exception:', error)
+            return false
         }
-
-        return success
     }
 
     // Create a new file in the vault root
