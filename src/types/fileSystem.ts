@@ -30,21 +30,25 @@ export interface LocalDirectory extends FileSystemEntry {
 
 // Root vault information
 export interface VaultInfo {
+    id: string  // Unique identifier for the vault
     handle: FileSystemDirectoryHandle
     name: string
     path: string
     lastOpened: number
+    expanded: boolean  // UI state: whether the vault is expanded in sidebar
+    entries: (LocalFile | LocalDirectory)[]  // Files and folders in this vault
 }
 
 // Storage mode for the application
 export type StorageMode = 'browser' | 'local-fs'
 
-// File system store state
+// File system store state (updated for multi-vault)
 export interface FileSystemState {
     mode: StorageMode
-    vault: VaultInfo | null
-    entries: (LocalFile | LocalDirectory)[]
+    vaults: VaultInfo[]  // Support multiple vaults
+    activeVaultId: string | null  // Currently selected vault
     currentFileHandle: FileSystemFileHandle | null
+    currentFilePath: string | null
     isLoading: boolean
     error: string | null
 }

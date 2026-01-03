@@ -4,6 +4,7 @@ export interface Tab {
   content: string
   createdAt: number
   folderId: string | null  // null means root level
+  filePath?: string // For local file system integration
 }
 
 export interface Folder {

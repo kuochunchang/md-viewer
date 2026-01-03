@@ -24,9 +24,10 @@
           v-for="child in entry.children"
           :key="child.path"
           :entry="child"
+          :vault-id="vaultId"
           :depth="depth + 1"
-          @open-file="$emit('open-file', $event)"
-          @toggle-directory="$emit('toggle-directory', $event)"
+          @open-file="(file, vid) => $emit('open-file', file, vid)"
+          @toggle-directory="(vid, path) => $emit('toggle-directory', vid, path)"
         />
       </div>
     </template>
@@ -52,12 +53,13 @@ import type { LocalDirectory, LocalFile } from '../types/fileSystem';
 
 const props = defineProps<{
   entry: LocalFile | LocalDirectory
+  vaultId: string
   depth: number
 }>()
 
 const emit = defineEmits<{
-  (e: 'open-file', file: LocalFile): void
-  (e: 'toggle-directory', path: string): void
+  (e: 'open-file', file: LocalFile, vaultId: string): void
+  (e: 'toggle-directory', vaultId: string, path: string): void
 }>()
 
 const displayName = computed(() => {
@@ -85,13 +87,13 @@ function getFileCount(dir: LocalDirectory): string {
 
 function handleOpenFile() {
   if (props.entry.kind === 'file') {
-    emit('open-file', props.entry as LocalFile)
+    emit('open-file', props.entry as LocalFile, props.vaultId)
   }
 }
 
 function handleToggleDirectory() {
   if (props.entry.kind === 'directory') {
-    emit('toggle-directory', props.entry.path)
+    emit('toggle-directory', props.vaultId, props.entry.path)
   }
 }
 </script>

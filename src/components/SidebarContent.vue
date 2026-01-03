@@ -22,53 +22,135 @@
     <!-- Browser Mode: Original FileList -->
     <FileList v-if="currentMode === 'browser'" />
 
-    <!-- Local Mode: Vault Tree or Open Vault Button -->
+    <!-- Local Mode: Multi-Vault Display -->
     <template v-else>
-      <!-- Vault is open -->
-      <LocalVaultTree 
-        v-if="hasVault" 
-        @close-vault="handleCloseVault"
-      />
-
-      <!-- No vault open - show prompt -->
-      <div v-else class="vault-prompt">
-        <div class="prompt-icon">
-          <v-icon size="48" color="primary">mdi-folder-key-outline</v-icon>
-        </div>
-        <h3 class="prompt-title">Open Obsidian Vault</h3>
-        <p class="prompt-description">
-          Connect to a local folder to edit your Obsidian notes directly.
-          Changes are saved instantly to your hard drive.
-        </p>
-        <v-btn
-          color="primary"
-          variant="elevated"
-          size="large"
-          :loading="isLoading"
-          @click="handleOpenVault"
-        >
-          <v-icon start>mdi-folder-open-outline</v-icon>
-          Select Folder
-        </v-btn>
-
-        <!-- Previously used vault prompt -->
-        <div v-if="hasSavedVault" class="reconnect-prompt">
-          <p>Or reconnect to your previous vault:</p>
+      <div class="local-mode-content">
+        <!-- Vault List Header -->
+        <div class="vaults-header">
+          <span class="header-title">VAULTS</span>
           <v-btn
-            variant="outlined"
-            size="small"
-            @click="handleReconnectVault"
+            icon
+            variant="text"
+            size="x-small"
+            title="Add Vault"
+            :loading="isLoading"
+            @click="handleAddVault"
           >
-            <v-icon start size="16">mdi-refresh</v-icon>
-            Reconnect
+            <v-icon size="16">mdi-plus</v-icon>
           </v-btn>
         </div>
 
-        <!-- Not supported warning -->
-        <div v-if="!isSupported" class="not-supported-warning">
-          <v-icon color="warning" size="18">mdi-alert-outline</v-icon>
-          <span>File System Access is not supported in this browser. 
-            Please use Chrome, Edge, or Opera.</span>
+        <!-- Connected Vaults List -->
+        <div class="vaults-list" v-if="vaults.length > 0">
+          <div
+            v-for="vault in vaults"
+            :key="vault.id"
+            class="vault-item"
+          >
+            <!-- Vault Header (Expandable) -->
+            <div 
+              class="vault-header"
+              @click="handleToggleVault(vault.id)"
+            >
+              <v-icon size="16" class="expand-icon">
+                {{ vault.expanded ? 'mdi-chevron-down' : 'mdi-chevron-right' }}
+              </v-icon>
+              <v-icon size="18" class="vault-icon" color="primary">
+                mdi-folder-key-outline
+              </v-icon>
+              <span class="vault-name" :title="vault.name">{{ vault.name }}</span>
+              <div class="vault-actions">
+                <v-btn
+                  icon
+                  variant="text"
+                  size="x-small"
+                  title="Refresh"
+                  @click.stop="handleRefreshVault(vault.id)"
+                >
+                  <v-icon size="14">mdi-refresh</v-icon>
+                </v-btn>
+                <v-btn
+                  icon
+                  variant="text"
+                  size="x-small"
+                  title="New File"
+                  @click.stop="handleNewFile(vault.id)"
+                >
+                  <v-icon size="14">mdi-file-plus-outline</v-icon>
+                </v-btn>
+                <v-btn
+                  icon
+                  variant="text"
+                  size="x-small"
+                  title="Remove Vault"
+                  @click.stop="handleRemoveVault(vault.id)"
+                >
+                  <v-icon size="14">mdi-close</v-icon>
+                </v-btn>
+              </div>
+            </div>
+
+            <!-- Vault Contents (Expanded) -->
+            <div v-show="vault.expanded" class="vault-contents">
+              <LocalFileItem
+                v-for="entry in vault.entries"
+                :key="entry.path"
+                :entry="entry"
+                :vault-id="vault.id"
+                :depth="0"
+                @open-file="handleOpenFile"
+                @toggle-directory="handleToggleDirectory"
+              />
+              <div v-if="vault.entries.length === 0" class="empty-vault">
+                <span>No markdown files found</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- No Vaults - Show Add Prompt -->
+        <div v-else class="vault-prompt">
+          <div class="prompt-icon">
+            <v-icon size="48" color="primary">mdi-folder-key-outline</v-icon>
+          </div>
+          <h3 class="prompt-title">Add Obsidian Vault</h3>
+          <p class="prompt-description">
+            Connect to local folders to edit your Obsidian notes directly.
+            You can add multiple vaults.
+          </p>
+          <v-btn
+            color="primary"
+            variant="elevated"
+            size="large"
+            :loading="isLoading"
+            @click="handleAddVault"
+          >
+            <v-icon start>mdi-folder-plus-outline</v-icon>
+            Add Vault
+          </v-btn>
+
+          <!-- Saved vaults that need permission -->
+          <div v-if="savedVaultNames.length > 0" class="reconnect-prompt">
+            <p>Previously used vaults (need permission):</p>
+            <div class="saved-vaults">
+              <v-chip
+                v-for="saved in savedVaultNames"
+                :key="saved.id"
+                size="small"
+                @click="handleReconnectVault(saved.id)"
+              >
+                <v-icon start size="14">mdi-folder-key-outline</v-icon>
+                {{ saved.name }}
+              </v-chip>
+            </div>
+          </div>
+
+          <!-- Not supported warning -->
+          <div v-if="!isSupported" class="not-supported-warning">
+            <v-icon color="warning" size="18">mdi-alert-outline</v-icon>
+            <span>File System Access is not supported in this browser. 
+              Please use Chrome, Edge, or Opera.</span>
+          </div>
         </div>
       </div>
     </template>
@@ -95,18 +177,29 @@ import { storeToRefs } from 'pinia'
 import { onMounted, ref, watch } from 'vue'
 import { useFileSystem } from '../composables/useFileSystem'
 import { useFileSystemStore } from '../stores/fileSystemStore'
+import type { LocalFile } from '../types/fileSystem'
 import FileList from './FileList.vue'
-import LocalVaultTree from './LocalVaultTree.vue'
+import LocalFileItem from './LocalFileItem.vue'
 
 const fileSystemStore = useFileSystemStore()
-const { isLoading, error, isSupported } = storeToRefs(fileSystemStore)
-const { hasVault, openVault, closeVault, clearError: clearStoreError } = useFileSystem()
+const { isLoading, error, isSupported, vaults } = storeToRefs(fileSystemStore)
+const {
+  addVault,
+  removeVault,
+  reconnectVaults,
+  toggleVaultExpanded,
+  toggleDirectoryExpanded,
+  refreshVault,
+  openFile,
+  createNewFile,
+  clearError: clearStoreError
+} = useFileSystem()
 
 // UI State
 const currentMode = ref<'browser' | 'local'>('browser')
-const hasSavedVault = ref(false)
 const showError = ref(false)
 const errorMessage = ref('')
+const savedVaultNames = ref<Array<{ id: string; name: string }>>([])
 
 // Watch for errors
 watch(error, (newError) => {
@@ -126,54 +219,68 @@ watch(
   }
 )
 
-// Check for saved vault on mount
+// Check for saved vaults and try to reconnect on mount
 onMounted(async () => {
-  // Check if there's a saved vault handle in IndexedDB
-  try {
-    const db = await new Promise<IDBDatabase>((resolve, reject) => {
-      const request = indexedDB.open('md-viewer-fs', 1)
-      request.onerror = () => reject(request.error)
-      request.onsuccess = () => resolve(request.result)
-      request.onupgradeneeded = () => {
-        const db = request.result
-        if (!db.objectStoreNames.contains('handles')) {
-          db.createObjectStore('handles')
-        }
-      }
-    })
-    
-    const tx = db.transaction('handles', 'readonly')
-    const store = tx.objectStore('handles')
-    const handle = await new Promise<FileSystemDirectoryHandle | null>((resolve) => {
-      const request = store.get('vaultHandle')
-      request.onsuccess = () => resolve(request.result || null)
-      request.onerror = () => resolve(null)
-    })
-    
-    db.close()
-    hasSavedVault.value = handle !== null
-  } catch {
-    hasSavedVault.value = false
+  // Try to reconnect to saved vaults
+  const connectedCount = await reconnectVaults()
+  
+  if (connectedCount > 0) {
+    currentMode.value = 'local'
   }
+  
+  // Get list of saved vaults for reconnection UI
+  savedVaultNames.value = await fileSystemStore.getSavedVaultNames()
+  
+  // Remove already connected vaults from the saved list
+  const connectedIds = new Set(vaults.value.map(v => v.id))
+  savedVaultNames.value = savedVaultNames.value.filter(v => !connectedIds.has(v.id))
 })
 
-async function handleOpenVault() {
-  const success = await openVault()
-  if (success) {
+async function handleAddVault() {
+  const vault = await addVault()
+  if (vault) {
     currentMode.value = 'local'
+    // Remove from saved list if it was there
+    savedVaultNames.value = savedVaultNames.value.filter(v => v.id !== vault.id)
   }
 }
 
-async function handleReconnectVault() {
-  const success = await fileSystemStore.requestVaultPermission()
-  if (success) {
-    currentMode.value = 'local'
+async function handleRemoveVault(vaultId: string) {
+  await removeVault(vaultId)
+  
+  // If no vaults left, switch back to browser mode
+  if (vaults.value.length === 0) {
+    currentMode.value = 'browser'
   }
 }
 
-function handleCloseVault() {
-  closeVault()
-  currentMode.value = 'browser'
+async function handleReconnectVault(vaultId: string) {
+  const success = await fileSystemStore.requestVaultPermission(vaultId)
+  if (success) {
+    currentMode.value = 'local'
+    // Remove from saved list
+    savedVaultNames.value = savedVaultNames.value.filter(v => v.id !== vaultId)
+  }
+}
+
+function handleToggleVault(vaultId: string) {
+  toggleVaultExpanded(vaultId)
+}
+
+function handleToggleDirectory(vaultId: string, dirPath: string) {
+  toggleDirectoryExpanded(vaultId, dirPath)
+}
+
+async function handleRefreshVault(vaultId: string) {
+  await refreshVault(vaultId)
+}
+
+async function handleNewFile(vaultId: string) {
+  await createNewFile(vaultId)
+}
+
+async function handleOpenFile(file: LocalFile, vaultId: string) {
+  await openFile(file, vaultId)
 }
 
 function clearError() {
@@ -224,6 +331,88 @@ function clearError() {
   }
 }
 
+.local-mode-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.vaults-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-color);
+  
+  .header-title {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-tertiary);
+    letter-spacing: 0.5px;
+  }
+}
+
+.vaults-list {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.vault-item {
+  border-bottom: 1px solid var(--border-color);
+}
+
+.vault-header {
+  display: flex;
+  align-items: center;
+  padding: 8px 8px 8px 4px;
+  cursor: pointer;
+  gap: 4px;
+  
+  &:hover {
+    background-color: var(--hover-bg);
+  }
+  
+  .expand-icon {
+    opacity: 0.6;
+  }
+  
+  .vault-icon {
+    margin-right: 4px;
+  }
+  
+  .vault-name {
+    flex: 1;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  
+  .vault-actions {
+    display: flex;
+    opacity: 0;
+    transition: opacity 0.15s;
+  }
+  
+  &:hover .vault-actions {
+    opacity: 1;
+  }
+}
+
+.vault-contents {
+  padding-left: 8px;
+}
+
+.empty-vault {
+  padding: 16px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
 .vault-prompt {
   display: flex;
   flex-direction: column;
@@ -270,6 +459,13 @@ function clearError() {
     font-size: 12px;
     color: var(--text-tertiary);
     margin-bottom: 12px;
+  }
+  
+  .saved-vaults {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
   }
 }
 

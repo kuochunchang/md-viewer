@@ -1,6 +1,6 @@
 /**
  * File System Store - Manages local file system state for Obsidian integration
- * Handles vault opening, file reading/writing, and mode switching
+ * Supports multiple vaults with persistent handles stored in IndexedDB
  */
 
 import { defineStore } from 'pinia'
@@ -15,13 +15,18 @@ import { isFileSystemAccessSupported } from '../types/fileSystem'
 
 // IndexedDB database name and store for persisting directory handles
 const IDB_NAME = 'md-viewer-fs'
-const IDB_STORE = 'handles'
+const IDB_STORE = 'vaults'
+const IDB_VERSION = 2  // Bump version for multi-vault support
+
+// Generate unique ID for vaults
+function generateId(): string {
+    return `vault-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`
+}
 
 export const useFileSystemStore = defineStore('fileSystem', () => {
     // State
     const mode = ref<StorageMode>('browser')
-    const vault = shallowRef<VaultInfo | null>(null)
-    const entries = ref<(LocalFile | LocalDirectory)[]>([])
+    const vaults = shallowRef<VaultInfo[]>([])  // Multiple vaults
     const currentFileHandle = shallowRef<FileSystemFileHandle | null>(null)
     const currentFilePath = ref<string | null>(null)
     const isLoading = ref(false)
@@ -30,99 +35,97 @@ export const useFileSystemStore = defineStore('fileSystem', () => {
 
     // Computed
     const isLocalMode = computed(() => mode.value === 'local-fs')
-    const hasVault = computed(() => vault.value !== null)
-    const vaultName = computed(() => vault.value?.name || '')
+    const hasVaults = computed(() => vaults.value.length > 0)
 
-    // Get all markdown files recursively from entries
-    const allMarkdownFiles = computed(() => {
-        const files: LocalFile[] = []
-
-        function traverse(items: (LocalFile | LocalDirectory)[]) {
-            for (const item of items) {
-                if (item.kind === 'file') {
-                    if (item.name.endsWith('.md') || item.name.endsWith('.markdown')) {
-                        files.push(item)
-                    }
-                } else if (item.kind === 'directory') {
-                    traverse(item.children)
-                }
-            }
+    // Get all entries from all vaults (flattened)
+    const allEntries = computed(() => {
+        const result: (LocalFile | LocalDirectory)[] = []
+        for (const vault of vaults.value) {
+            result.push(...vault.entries)
         }
-
-        traverse(entries.value)
-        return files
+        return result
     })
 
-    // IndexedDB helpers for persisting directory handle
+    // IndexedDB helpers for persisting multiple vault handles
     async function openIDB(): Promise<IDBDatabase> {
         return new Promise((resolve, reject) => {
-            const request = indexedDB.open(IDB_NAME, 1)
+            const request = indexedDB.open(IDB_NAME, IDB_VERSION)
 
             request.onerror = () => reject(request.error)
             request.onsuccess = () => resolve(request.result)
 
-            request.onupgradeneeded = () => {
+            request.onupgradeneeded = (event) => {
                 const db = request.result
+                const oldVersion = event.oldVersion
+
+                // Delete old store if upgrading from version 1
+                if (oldVersion < 2 && db.objectStoreNames.contains('handles')) {
+                    db.deleteObjectStore('handles')
+                }
+
                 if (!db.objectStoreNames.contains(IDB_STORE)) {
-                    db.createObjectStore(IDB_STORE)
+                    db.createObjectStore(IDB_STORE, { keyPath: 'id' })
                 }
             }
         })
     }
 
-    async function saveHandleToIDB(handle: FileSystemDirectoryHandle): Promise<void> {
+    // Save a vault handle to IndexedDB
+    async function saveVaultToIDB(id: string, handle: FileSystemDirectoryHandle, name: string): Promise<void> {
         try {
             const db = await openIDB()
             const tx = db.transaction(IDB_STORE, 'readwrite')
             const store = tx.objectStore(IDB_STORE)
 
             await new Promise<void>((resolve, reject) => {
-                const request = store.put(handle, 'vaultHandle')
+                const request = store.put({ id, handle, name, lastOpened: Date.now() })
                 request.onsuccess = () => resolve()
                 request.onerror = () => reject(request.error)
             })
 
             db.close()
         } catch (err) {
-            console.warn('Failed to save handle to IndexedDB:', err)
+            console.warn('Failed to save vault to IndexedDB:', err)
         }
     }
 
-    async function loadHandleFromIDB(): Promise<FileSystemDirectoryHandle | null> {
+    // Load all vault handles from IndexedDB
+    async function loadVaultsFromIDB(): Promise<Array<{ id: string; handle: FileSystemDirectoryHandle; name: string }>> {
         try {
             const db = await openIDB()
             const tx = db.transaction(IDB_STORE, 'readonly')
             const store = tx.objectStore(IDB_STORE)
 
-            const handle = await new Promise<FileSystemDirectoryHandle | null>((resolve, reject) => {
-                const request = store.get('vaultHandle')
-                request.onsuccess = () => resolve(request.result || null)
+            const result = await new Promise<Array<{ id: string; handle: FileSystemDirectoryHandle; name: string }>>((resolve, reject) => {
+                const request = store.getAll()
+                request.onsuccess = () => resolve(request.result || [])
                 request.onerror = () => reject(request.error)
             })
 
             db.close()
-            return handle
+            return result
         } catch (err) {
-            console.warn('Failed to load handle from IndexedDB:', err)
-            return null
+            console.warn('Failed to load vaults from IndexedDB:', err)
+            return []
         }
     }
 
-    async function clearHandleFromIDB(): Promise<void> {
+    // Remove a vault from IndexedDB
+    async function removeVaultFromIDB(id: string): Promise<void> {
         try {
             const db = await openIDB()
             const tx = db.transaction(IDB_STORE, 'readwrite')
             const store = tx.objectStore(IDB_STORE)
 
             await new Promise<void>((resolve, reject) => {
-                const request = store.delete('vaultHandle')
+                const request = store.delete(id)
                 request.onsuccess = () => resolve()
                 request.onerror = () => reject(request.error)
             })
 
             db.close()
         } catch (err) {
-            console.warn('Failed to clear handle from IndexedDB:', err)
+            console.warn('Failed to remove vault from IndexedDB:', err)
         }
     }
 
@@ -182,11 +185,11 @@ export const useFileSystemStore = defineStore('fileSystem', () => {
         return items
     }
 
-    // Open a local vault (directory)
-    async function openVault(): Promise<boolean> {
+    // Add a new vault (open directory picker)
+    async function addVault(): Promise<VaultInfo | null> {
         if (!isSupported.value) {
             error.value = 'File System Access API is not supported in this browser. Please use Chrome, Edge, or Opera.'
-            return false
+            return null
         }
 
         try {
@@ -197,96 +200,136 @@ export const useFileSystemStore = defineStore('fileSystem', () => {
                 mode: 'readwrite'
             })
 
-            // Read directory contents
-            const contents = await readDirectory(handle)
+            // Check if vault already exists
+            const existing = vaults.value.find(v => v.name === handle.name)
+            if (existing) {
+                error.value = `Vault "${handle.name}" is already added.`
+                return null
+            }
 
-            // Update state
-            vault.value = {
+            // Read directory contents
+            const entries = await readDirectory(handle)
+
+            const id = generateId()
+            const newVault: VaultInfo = {
+                id,
                 handle,
                 name: handle.name,
                 path: handle.name,
-                lastOpened: Date.now()
+                lastOpened: Date.now(),
+                expanded: true,  // Expand by default when adding
+                entries
             }
-            entries.value = contents
+
+            // Update state
+            vaults.value = [...vaults.value, newVault]
             mode.value = 'local-fs'
 
             // Persist handle for later sessions
-            await saveHandleToIDB(handle)
+            await saveVaultToIDB(id, handle, handle.name)
 
-            return true
+            return newVault
         } catch (err) {
             if ((err as Error).name === 'AbortError') {
                 // User cancelled the picker
-                return false
+                return null
             }
 
-            console.error('Failed to open vault:', err)
-            error.value = `Failed to open vault: ${(err as Error).message}`
-            return false
+            console.error('Failed to add vault:', err)
+            error.value = `Failed to add vault: ${(err as Error).message}`
+            return null
         } finally {
             isLoading.value = false
         }
     }
 
-    // Try to reconnect to a previously opened vault
-    async function reconnectVault(): Promise<boolean> {
-        if (!isSupported.value) return false
+    // Remove a vault
+    async function removeVault(vaultId: string): Promise<void> {
+        const index = vaults.value.findIndex(v => v.id === vaultId)
+        if (index === -1) return
 
-        try {
-            const handle = await loadHandleFromIDB()
-            if (!handle) return false
+        // Remove from state
+        const newVaults = [...vaults.value]
+        newVaults.splice(index, 1)
+        vaults.value = newVaults
 
-            // Check if we still have permission
-            const permission = await handle.queryPermission({ mode: 'readwrite' })
+        // Remove from IndexedDB
+        await removeVaultFromIDB(vaultId)
 
-            if (permission === 'granted') {
-                // We have permission, reload the vault
-                isLoading.value = true
-                const contents = await readDirectory(handle)
-
-                vault.value = {
-                    handle,
-                    name: handle.name,
-                    path: handle.name,
-                    lastOpened: Date.now()
-                }
-                entries.value = contents
-                mode.value = 'local-fs'
-                isLoading.value = false
-                return true
-            } else if (permission === 'prompt') {
-                // Need to request permission again (will be done on user gesture)
-                return false
-            }
-
-            return false
-        } catch (err) {
-            console.warn('Failed to reconnect vault:', err)
-            return false
+        // If no vaults left, switch to browser mode
+        if (vaults.value.length === 0) {
+            mode.value = 'browser'
         }
     }
 
-    // Request permission for a previously used vault
-    async function requestVaultPermission(): Promise<boolean> {
-        if (!isSupported.value) return false
+    // Reconnect to all saved vaults on app startup
+    async function reconnectVaults(): Promise<number> {
+        if (!isSupported.value) return 0
+
+        const savedVaults = await loadVaultsFromIDB()
+        if (savedVaults.length === 0) return 0
+
+        let connectedCount = 0
+
+        for (const saved of savedVaults) {
+            try {
+                // Check if we still have permission
+                const permission = await saved.handle.queryPermission({ mode: 'readwrite' })
+
+                if (permission === 'granted') {
+                    // We have permission, load the vault
+                    const entries = await readDirectory(saved.handle)
+
+                    const vault: VaultInfo = {
+                        id: saved.id,
+                        handle: saved.handle,
+                        name: saved.name,
+                        path: saved.name,
+                        lastOpened: Date.now(),
+                        expanded: false,  // Collapsed by default on reconnect
+                        entries
+                    }
+
+                    vaults.value = [...vaults.value, vault]
+                    connectedCount++
+                }
+                // If permission is 'prompt', user needs to grant it again via UI
+            } catch (err) {
+                console.warn(`Failed to reconnect vault "${saved.name}":`, err)
+            }
+        }
+
+        if (connectedCount > 0) {
+            mode.value = 'local-fs'
+        }
+
+        return connectedCount
+    }
+
+    // Request permission for a specific vault
+    async function requestVaultPermission(vaultId: string): Promise<boolean> {
+        const savedVaults = await loadVaultsFromIDB()
+        const saved = savedVaults.find(v => v.id === vaultId)
+        if (!saved) return false
 
         try {
-            const handle = await loadHandleFromIDB()
-            if (!handle) return false
-
-            const permission = await handle.requestPermission({ mode: 'readwrite' })
+            const permission = await saved.handle.requestPermission({ mode: 'readwrite' })
 
             if (permission === 'granted') {
                 isLoading.value = true
-                const contents = await readDirectory(handle)
+                const entries = await readDirectory(saved.handle)
 
-                vault.value = {
-                    handle,
-                    name: handle.name,
-                    path: handle.name,
-                    lastOpened: Date.now()
+                const vault: VaultInfo = {
+                    id: saved.id,
+                    handle: saved.handle,
+                    name: saved.name,
+                    path: saved.name,
+                    lastOpened: Date.now(),
+                    expanded: true,
+                    entries
                 }
-                entries.value = contents
+
+                vaults.value = [...vaults.value, vault]
                 mode.value = 'local-fs'
                 isLoading.value = false
                 return true
@@ -299,19 +342,65 @@ export const useFileSystemStore = defineStore('fileSystem', () => {
         }
     }
 
-    // Close the current vault
-    function closeVault(): void {
-        vault.value = null
-        entries.value = []
-        currentFileHandle.value = null
-        currentFilePath.value = null
-        mode.value = 'browser'
+    // Toggle vault expansion state
+    function toggleVaultExpanded(vaultId: string): void {
+        const index = vaults.value.findIndex(v => v.id === vaultId)
+        if (index === -1) return
+
+        const newVaults = [...vaults.value]
+        newVaults[index] = {
+            ...newVaults[index],
+            expanded: !newVaults[index].expanded
+        }
+        vaults.value = newVaults
     }
 
-    // Clear saved vault from IndexedDB and close
-    async function forgetVault(): Promise<void> {
-        await clearHandleFromIDB()
-        closeVault()
+    // Toggle directory expansion within a vault
+    function toggleDirectoryExpanded(vaultId: string, dirPath: string): void {
+        const vaultIndex = vaults.value.findIndex(v => v.id === vaultId)
+        if (vaultIndex === -1) return
+
+        function toggleInEntries(entries: (LocalFile | LocalDirectory)[]): boolean {
+            for (const entry of entries) {
+                if (entry.kind === 'directory') {
+                    if (entry.path === dirPath) {
+                        entry.expanded = !entry.expanded
+                        return true
+                    }
+                    if (toggleInEntries(entry.children)) return true
+                }
+            }
+            return false
+        }
+
+        const vault = vaults.value[vaultIndex]
+        toggleInEntries(vault.entries)
+        // Trigger reactivity
+        vaults.value = [...vaults.value]
+    }
+
+    // Refresh a specific vault's contents
+    async function refreshVault(vaultId: string): Promise<boolean> {
+        const index = vaults.value.findIndex(v => v.id === vaultId)
+        if (index === -1) return false
+
+        try {
+            isLoading.value = true
+            const vault = vaults.value[index]
+            const entries = await readDirectory(vault.handle)
+
+            const newVaults = [...vaults.value]
+            newVaults[index] = { ...vault, entries }
+            vaults.value = newVaults
+
+            return true
+        } catch (err) {
+            console.error('Failed to refresh vault:', err)
+            error.value = `Failed to refresh vault: ${(err as Error).message}`
+            return false
+        } finally {
+            isLoading.value = false
+        }
     }
 
     // Read a file's content
@@ -320,31 +409,45 @@ export const useFileSystemStore = defineStore('fileSystem', () => {
         return await file.text()
     }
 
-    // Read a file by path
-    async function readFileByPath(path: string): Promise<string | null> {
-        const file = findFileByPath(path)
-        if (!file) return null
-
-        currentFileHandle.value = file.handle
-        currentFilePath.value = path
-        return await readFile(file.handle)
-    }
-
-    // Find a file entry by path
-    function findFileByPath(path: string): LocalFile | null {
-        function search(items: (LocalFile | LocalDirectory)[]): LocalFile | null {
-            for (const item of items) {
-                if (item.kind === 'file' && item.path === path) {
-                    return item
-                } else if (item.kind === 'directory') {
-                    const found = search(item.children)
+    // Find a file entry by path (searches all vaults)
+    function findFileByPath(filePath: string): LocalFile | null {
+        function search(entries: (LocalFile | LocalDirectory)[]): LocalFile | null {
+            for (const entry of entries) {
+                if (entry.kind === 'file' && entry.path === filePath) {
+                    return entry
+                } else if (entry.kind === 'directory') {
+                    const found = search(entry.children)
                     if (found) return found
                 }
             }
             return null
         }
 
-        return search(entries.value)
+        for (const vault of vaults.value) {
+            const found = search(vault.entries)
+            if (found) return found
+        }
+        return null
+    }
+
+    // Find a file by path within a specific vault
+    function findFileInVault(vaultId: string, filePath: string): LocalFile | null {
+        const vault = vaults.value.find(v => v.id === vaultId)
+        if (!vault) return null
+
+        function search(entries: (LocalFile | LocalDirectory)[]): LocalFile | null {
+            for (const entry of entries) {
+                if (entry.kind === 'file' && entry.path === filePath) {
+                    return entry
+                } else if (entry.kind === 'directory') {
+                    const found = search(entry.children)
+                    if (found) return found
+                }
+            }
+            return null
+        }
+
+        return search(vault.entries)
     }
 
     // Save content to a file
@@ -361,85 +464,61 @@ export const useFileSystemStore = defineStore('fileSystem', () => {
         }
     }
 
-    // Save content to the current file
-    async function saveCurrentFile(content: string): Promise<boolean> {
-        if (!currentFileHandle.value) {
-            error.value = 'No file is currently open'
-            return false
-        }
-
-        return await saveFile(currentFileHandle.value, content)
-    }
-
-    // Save content to a file by path
-    async function saveFileByPath(path: string, content: string): Promise<boolean> {
-        const file = findFileByPath(path)
-        if (!file) {
-            error.value = `File not found: ${path}`
-            return false
-        }
-
-        return await saveFile(file.handle, content)
-    }
-
-    // Create a new file in a directory
-    async function createFile(
-        dirHandle: FileSystemDirectoryHandle,
+    // Create a new file in a vault
+    async function createFileInVault(
+        vaultId: string,
         name: string,
         content: string = ''
-    ): Promise<FileSystemFileHandle | null> {
+    ): Promise<LocalFile | null> {
+        const vault = vaults.value.find(v => v.id === vaultId)
+        if (!vault) {
+            error.value = 'Vault not found'
+            return null
+        }
+
         try {
             // Ensure .md extension
             const fileName = name.endsWith('.md') ? name : `${name}.md`
 
-            const fileHandle = await dirHandle.getFileHandle(fileName, { create: true })
+            const fileHandle = await vault.handle.getFileHandle(fileName, { create: true })
 
             if (content) {
                 await saveFile(fileHandle, content)
             }
 
-            return fileHandle
+            const file = await fileHandle.getFile()
+            const newFile: LocalFile = {
+                handle: fileHandle,
+                name: fileName,
+                path: fileName,
+                kind: 'file',
+                lastModified: file.lastModified,
+                size: file.size
+            }
+
+            // Add to vault entries
+            const vaultIndex = vaults.value.findIndex(v => v.id === vaultId)
+            if (vaultIndex !== -1) {
+                const updatedVault = { ...vaults.value[vaultIndex] }
+                updatedVault.entries = [...updatedVault.entries, newFile]
+                // Sort entries
+                updatedVault.entries.sort((a, b) => {
+                    if (a.kind !== b.kind) {
+                        return a.kind === 'directory' ? -1 : 1
+                    }
+                    return a.name.localeCompare(b.name, undefined, { numeric: true })
+                })
+                const newVaults = [...vaults.value]
+                newVaults[vaultIndex] = updatedVault
+                vaults.value = newVaults
+            }
+
+            return newFile
         } catch (err) {
             console.error('Failed to create file:', err)
             error.value = `Failed to create file: ${(err as Error).message}`
             return null
         }
-    }
-
-    // Create a new file in the vault root
-    async function createFileInRoot(name: string, content: string = ''): Promise<LocalFile | null> {
-        if (!vault.value) {
-            error.value = 'No vault is open'
-            return null
-        }
-
-        const fileHandle = await createFile(vault.value.handle, name, content)
-        if (!fileHandle) return null
-
-        const fileName = name.endsWith('.md') ? name : `${name}.md`
-        const file = await fileHandle.getFile()
-
-        const newFile: LocalFile = {
-            handle: fileHandle,
-            name: fileName,
-            path: fileName,
-            kind: 'file',
-            lastModified: file.lastModified,
-            size: file.size
-        }
-
-        // Add to entries
-        entries.value = [...entries.value, newFile]
-
-        // Re-sort entries
-        entries.value.sort((a, b) => {
-            if (a.kind !== b.kind) {
-                return a.kind === 'directory' ? -1 : 1
-            }
-            return a.name.localeCompare(b.name, undefined, { numeric: true })
-        })
-
-        return newFile
     }
 
     // Set the current file handle for saving
@@ -448,40 +527,12 @@ export const useFileSystemStore = defineStore('fileSystem', () => {
         currentFilePath.value = path
     }
 
-    // Toggle directory expansion
-    function toggleDirectoryExpanded(path: string): void {
-        function toggle(items: (LocalFile | LocalDirectory)[]): boolean {
-            for (const item of items) {
-                if (item.kind === 'directory') {
-                    if (item.path === path) {
-                        item.expanded = !item.expanded
-                        return true
-                    }
-                    if (toggle(item.children)) return true
-                }
-            }
-            return false
-        }
-
-        toggle(entries.value)
-    }
-
-    // Refresh the vault contents
-    async function refreshVault(): Promise<boolean> {
-        if (!vault.value) return false
-
-        try {
-            isLoading.value = true
-            const contents = await readDirectory(vault.value.handle)
-            entries.value = contents
-            return true
-        } catch (err) {
-            console.error('Failed to refresh vault:', err)
-            error.value = `Failed to refresh vault: ${(err as Error).message}`
-            return false
-        } finally {
-            isLoading.value = false
-        }
+    // Close all vaults and switch to browser mode
+    function closeAllVaults(): void {
+        vaults.value = []
+        currentFileHandle.value = null
+        currentFilePath.value = null
+        mode.value = 'browser'
     }
 
     // Clear error
@@ -489,11 +540,16 @@ export const useFileSystemStore = defineStore('fileSystem', () => {
         error.value = null
     }
 
+    // Get list of saved vault info for UI (even if not connected)
+    async function getSavedVaultNames(): Promise<Array<{ id: string; name: string }>> {
+        const saved = await loadVaultsFromIDB()
+        return saved.map(v => ({ id: v.id, name: v.name }))
+    }
+
     return {
         // State
         mode,
-        vault,
-        entries,
+        vaults,
         currentFileHandle,
         currentFilePath,
         isLoading,
@@ -502,27 +558,25 @@ export const useFileSystemStore = defineStore('fileSystem', () => {
 
         // Computed
         isLocalMode,
-        hasVault,
-        vaultName,
-        allMarkdownFiles,
+        hasVaults,
+        allEntries,
 
         // Actions
-        openVault,
-        reconnectVault,
+        addVault,
+        removeVault,
+        reconnectVaults,
         requestVaultPermission,
-        closeVault,
-        forgetVault,
-        readFile,
-        readFileByPath,
-        findFileByPath,
-        saveFile,
-        saveCurrentFile,
-        saveFileByPath,
-        createFile,
-        createFileInRoot,
-        setCurrentFile,
+        toggleVaultExpanded,
         toggleDirectoryExpanded,
         refreshVault,
-        clearError
+        readFile,
+        findFileByPath,
+        findFileInVault,
+        saveFile,
+        createFileInVault,
+        setCurrentFile,
+        closeAllVaults,
+        clearError,
+        getSavedVaultNames
     }
 })

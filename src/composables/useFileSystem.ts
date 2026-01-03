@@ -1,6 +1,6 @@
 /**
  * useFileSystem Composable
- * High-level composable for file system operations with Obsidian integration
+ * High-level composable for file system operations with multi-vault Obsidian integration
  * Provides a unified API for working with local files and browser storage
  */
 
@@ -9,27 +9,29 @@ import type { ComputedRef } from 'vue'
 import { computed, watch } from 'vue'
 import { useFileSystemStore } from '../stores/fileSystemStore'
 import { useTabsStore } from '../stores/tabsStore'
-import type { LocalDirectory, LocalFile } from '../types/fileSystem'
+import type { LocalFile, VaultInfo } from '../types/fileSystem'
 
 export interface UseFileSystemReturn {
     // State
     isSupported: ComputedRef<boolean>
     isLocalMode: ComputedRef<boolean>
-    hasVault: ComputedRef<boolean>
-    vaultName: ComputedRef<string>
+    hasVaults: ComputedRef<boolean>
+    vaults: ComputedRef<VaultInfo[]>
     isLoading: ComputedRef<boolean>
     error: ComputedRef<string | null>
-    entries: ComputedRef<(LocalFile | LocalDirectory)[]>
 
     // Vault operations
-    openVault: () => Promise<boolean>
-    closeVault: () => void
-    refreshVault: () => Promise<boolean>
+    addVault: () => Promise<VaultInfo | null>
+    removeVault: (vaultId: string) => Promise<void>
+    reconnectVaults: () => Promise<number>
+    toggleVaultExpanded: (vaultId: string) => void
+    toggleDirectoryExpanded: (vaultId: string, dirPath: string) => void
+    refreshVault: (vaultId: string) => Promise<boolean>
 
     // File operations
-    openFile: (file: LocalFile) => Promise<void>
+    openFile: (file: LocalFile, vaultId?: string) => Promise<void>
     saveCurrentFile: () => Promise<boolean>
-    createNewFile: (name?: string) => Promise<LocalFile | null>
+    createNewFile: (vaultId: string, name?: string) => Promise<LocalFile | null>
 
     // Change detection
     checkExternalChange: () => Promise<boolean>
@@ -42,9 +44,13 @@ export interface UseFileSystemReturn {
     clearError: () => void
 }
 
-// Global mappings between tabs and file paths
+// Global mappings between tabs and file info
 // This ensures state is shared across multiple usages of the composable
-const tabToFilePath = new Map<string, string>()
+interface FileInfo {
+    vaultId: string
+    filePath: string
+}
+const tabToFileInfo = new Map<string, FileInfo>()
 const filePathToTab = new Map<string, string>()
 
 export function useFileSystem(): UseFileSystemReturn {
@@ -54,15 +60,14 @@ export function useFileSystem(): UseFileSystemReturn {
     const {
         isSupported,
         isLocalMode,
-        hasVault,
-        vaultName,
+        hasVaults,
+        vaults,
         isLoading,
-        error,
-        entries
+        error
     } = storeToRefs(fileSystemStore)
 
     // Open a local file and create a tab for it
-    async function openFile(file: LocalFile): Promise<void> {
+    async function openFile(file: LocalFile, vaultId?: string): Promise<void> {
         // Check if file is already open
         const existingTabId = filePathToTab.get(file.path)
         if (existingTabId) {
@@ -79,8 +84,19 @@ export function useFileSystem(): UseFileSystemReturn {
             const displayName = file.name.replace(/\.md$/, '').replace(/\.markdown$/, '')
             const tabId = tabsStore.addTabWithContent(displayName, content, null)
 
-            // Track the mapping
-            tabToFilePath.set(tabId, file.path)
+            // Track the mapping (include vaultId for multi-vault support)
+            if (vaultId) {
+                tabToFileInfo.set(tabId, { vaultId, filePath: file.path })
+            } else {
+                // Try to find which vault this file belongs to
+                for (const vault of vaults.value) {
+                    const found = fileSystemStore.findFileInVault(vault.id, file.path)
+                    if (found) {
+                        tabToFileInfo.set(tabId, { vaultId: vault.id, filePath: file.path })
+                        break
+                    }
+                }
+            }
             filePathToTab.set(file.path, tabId)
 
             // Set as current file for saving
@@ -97,13 +113,13 @@ export function useFileSystem(): UseFileSystemReturn {
         const activeTab = tabsStore.activeTab
         if (!activeTab) return false
 
-        const filePath = tabToFilePath.get(activeTab.id)
-        if (!filePath) {
+        const fileInfo = tabToFileInfo.get(activeTab.id)
+        if (!fileInfo) {
             // This tab doesn't have a corresponding local file
             return false
         }
 
-        const file = fileSystemStore.findFileByPath(filePath)
+        const file = fileSystemStore.findFileByPath(fileInfo.filePath)
         if (!file) return false
 
         try {
@@ -128,46 +144,23 @@ export function useFileSystem(): UseFileSystemReturn {
         }
     }
 
-    // Create a new file in the vault root
-    async function createNewFile(name?: string): Promise<LocalFile | null> {
-        if (!hasVault.value) return null
-
+    // Create a new file in a vault
+    async function createNewFile(vaultId: string, name?: string): Promise<LocalFile | null> {
         const fileName = name || `New Document ${Date.now()}`
-        const file = await fileSystemStore.createFileInRoot(fileName, '')
+        const file = await fileSystemStore.createFileInVault(vaultId, fileName, '')
 
         if (file) {
-            await openFile(file)
+            await openFile(file, vaultId)
         }
 
         return file
     }
 
-    // Open the vault picker
-    async function openVault(): Promise<boolean> {
-        // Clear existing mappings when opening a new vault
-        tabToFilePath.clear()
-        filePathToTab.clear()
-
-        return await fileSystemStore.openVault()
-    }
-
-    // Close the vault and switch to browser mode
-    function closeVault(): void {
-        tabToFilePath.clear()
-        filePathToTab.clear()
-        fileSystemStore.closeVault()
-    }
-
-    // Switch back to browser mode without forgetting the vault
+    // Switch back to browser mode
     function switchToBrowserMode(): void {
-        tabToFilePath.clear()
+        tabToFileInfo.clear()
         filePathToTab.clear()
-        fileSystemStore.closeVault()
-    }
-
-    // Refresh vault contents
-    async function refreshVault(): Promise<boolean> {
-        return await fileSystemStore.refreshVault()
+        fileSystemStore.closeAllVaults()
     }
 
     // Clear error message
@@ -182,10 +175,10 @@ export function useFileSystem(): UseFileSystemReturn {
             // Remove mappings for tabs that no longer exist
             const tabIds = new Set(tabsStore.tabs.map(t => t.id))
 
-            for (const [tabId, filePath] of tabToFilePath.entries()) {
+            for (const [tabId, fileInfo] of tabToFileInfo.entries()) {
                 if (!tabIds.has(tabId)) {
-                    tabToFilePath.delete(tabId)
-                    filePathToTab.delete(filePath)
+                    tabToFileInfo.delete(tabId)
+                    filePathToTab.delete(fileInfo.filePath)
                 }
             }
         }
@@ -197,11 +190,11 @@ export function useFileSystem(): UseFileSystemReturn {
         (newTabId) => {
             if (!newTabId || !isLocalMode.value) return
 
-            const filePath = tabToFilePath.get(newTabId)
-            if (filePath) {
-                const file = fileSystemStore.findFileByPath(filePath)
+            const fileInfo = tabToFileInfo.get(newTabId)
+            if (fileInfo) {
+                const file = fileSystemStore.findFileByPath(fileInfo.filePath)
                 if (file) {
-                    fileSystemStore.setCurrentFile(file.handle, filePath)
+                    fileSystemStore.setCurrentFile(file.handle, fileInfo.filePath)
                 }
             } else {
                 fileSystemStore.setCurrentFile(null, null)
@@ -216,17 +209,17 @@ export function useFileSystem(): UseFileSystemReturn {
         const activeTab = tabsStore.activeTab
         if (!activeTab) return false
 
-        const filePath = tabToFilePath.get(activeTab.id)
-        if (!filePath) return false
+        const fileInfo = tabToFileInfo.get(activeTab.id)
+        if (!fileInfo) return false
 
-        const file = fileSystemStore.findFileByPath(filePath)
+        const file = fileSystemStore.findFileByPath(fileInfo.filePath)
         if (!file || !file.lastModified) return false
 
         try {
             const diskFile = await file.handle.getFile()
             // If disk file is newer than our internal record (with 1s tolerance)
             if (diskFile.lastModified > file.lastModified + 1000) {
-                console.log('[FileSystem] External change detected:', filePath)
+                console.log('[FileSystem] External change detected:', fileInfo.filePath)
                 return true
             }
         } catch (err) {
@@ -241,10 +234,10 @@ export function useFileSystem(): UseFileSystemReturn {
         const activeTab = tabsStore.activeTab
         if (!activeTab) return
 
-        const filePath = tabToFilePath.get(activeTab.id)
-        if (!filePath) return
+        const fileInfo = tabToFileInfo.get(activeTab.id)
+        if (!fileInfo) return
 
-        const file = fileSystemStore.findFileByPath(filePath)
+        const file = fileSystemStore.findFileByPath(fileInfo.filePath)
         if (!file) return
 
         try {
@@ -256,11 +249,6 @@ export function useFileSystem(): UseFileSystemReturn {
 
             // Update lastModified
             file.lastModified = diskFile.lastModified
-
-            // Re-sync editor history (optional, currently resetting history might be safer to avoid mixing states)
-            // But tabsStore.updateTabContent usually keeps history intact or appends.
-            // For a full reload, we might want to consider how to handle undo stack.
-            // For now, simple content update is sufficient.
         } catch (err) {
             console.error('Failed to reload file:', err)
         }
@@ -270,16 +258,18 @@ export function useFileSystem(): UseFileSystemReturn {
         // State (computed refs)
         isSupported: computed(() => isSupported.value),
         isLocalMode: computed(() => isLocalMode.value),
-        hasVault: computed(() => hasVault.value),
-        vaultName: computed(() => vaultName.value),
+        hasVaults: computed(() => hasVaults.value),
+        vaults: computed(() => vaults.value),
         isLoading: computed(() => isLoading.value),
         error: computed(() => error.value),
-        entries: computed(() => entries.value),
 
         // Vault operations
-        openVault,
-        closeVault,
-        refreshVault,
+        addVault: () => fileSystemStore.addVault(),
+        removeVault: (vaultId: string) => fileSystemStore.removeVault(vaultId),
+        reconnectVaults: () => fileSystemStore.reconnectVaults(),
+        toggleVaultExpanded: (vaultId: string) => fileSystemStore.toggleVaultExpanded(vaultId),
+        toggleDirectoryExpanded: (vaultId: string, dirPath: string) => fileSystemStore.toggleDirectoryExpanded(vaultId, dirPath),
+        refreshVault: (vaultId: string) => fileSystemStore.refreshVault(vaultId),
 
         // File operations
         openFile,
@@ -298,15 +288,12 @@ export function useFileSystem(): UseFileSystemReturn {
     }
 }
 
-// Get file path for a tab (if it's a local file)
-export function getTabFilePath(_tabId: string): string | null {
-    // This needs to access the internal mappings, but since they're in the composable
-    // we'll expose this through a different mechanism if needed
-    return null
+// Get file info for a tab (if it's a local file)
+export function getTabFileInfo(tabId: string): FileInfo | null {
+    return tabToFileInfo.get(tabId) || null
 }
 
 // Check if a tab is a local file
-export function isTabLocalFile(_tabId: string): boolean {
-    // Similar to above, this would need access to internal mappings
-    return false
+export function isTabLocalFile(tabId: string): boolean {
+    return tabToFileInfo.has(tabId)
 }
