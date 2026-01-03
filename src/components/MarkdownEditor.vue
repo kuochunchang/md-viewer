@@ -155,6 +155,19 @@
               <v-icon size="18">mdi-redo</v-icon>
             </v-btn>
           </div>
+          
+          <!-- Save Status -->
+          <div class="toolbar-group save-status ml-auto" v-if="lastSaveTime || isSaving">
+            <span class="text-caption text-medium-emphasis">
+              <template v-if="isSaving">
+                <v-progress-circular indeterminate size="12" width="2" class="mr-1"></v-progress-circular>
+                Saving...
+              </template>
+              <template v-else-if="lastSaveTime">
+                Saved {{ lastSaveTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }}
+              </template>
+            </span>
+          </div>
         </div>
       </div>
     </div>
@@ -449,8 +462,9 @@ const handleKeydown = (e: KeyboardEvent) => {
 // Save functionality - works for both browser and local modes
 const isSaving = ref(false)
 const showSaveSuccess = ref(false)
+const lastSaveTime = ref<Date | null>(null)
 
-const handleSave = async () => {
+const handleSave = async (manual = true) => {
   if (isSaving.value) return
   
   try {
@@ -460,14 +474,20 @@ const handleSave = async () => {
     if (fileSystem.isLocalMode.value) {
       const success = await fileSystem.saveCurrentFile()
       if (success) {
-        showSaveSuccess.value = true
-        setTimeout(() => { showSaveSuccess.value = false }, 1500)
+        lastSaveTime.value = new Date()
+        if (manual) {
+          showSaveSuccess.value = true
+          setTimeout(() => { showSaveSuccess.value = false }, 1500)
+        }
       }
     } else {
       // In browser mode, the content is already auto-saved to localStorage
-      // Just show a brief confirmation
-      showSaveSuccess.value = true
-      setTimeout(() => { showSaveSuccess.value = false }, 1500)
+      // Just show a brief confirmation if manual
+      lastSaveTime.value = new Date()
+      if (manual) {
+        showSaveSuccess.value = true
+        setTimeout(() => { showSaveSuccess.value = false }, 1500)
+      }
     }
   } catch (err) {
     console.error('Failed to save:', err)
@@ -475,6 +495,22 @@ const handleSave = async () => {
     isSaving.value = false
   }
 }
+
+// Debounce helper
+const debounce = (fn: Function, delay: number) => {
+  let timeoutId: ReturnType<typeof setTimeout>
+  return (...args: any[]) => {
+    clearTimeout(timeoutId)
+    timeoutId = setTimeout(() => fn(...args), delay)
+  }
+}
+
+// Auto-save: debounce for 2 seconds (2000ms)
+const debouncedAutoSave = debounce(() => {
+  if (fileSystem.isLocalMode.value) {
+    handleSave(false) // false means auto-save (silent)
+  }
+}, 2000)
 
 // Format Markdown functionality
 const isFormatting = ref(false)
@@ -830,6 +866,7 @@ const handleInput = (e: Event) => {
   localContent.value = target.value
   emit('update:modelValue', target.value)
   pushHistory(target.value, target.selectionStart)
+  debouncedAutoSave()
 }
 
 const handleScroll = (e: Event) => {
