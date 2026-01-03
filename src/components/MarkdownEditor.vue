@@ -224,6 +224,19 @@
       :selected-text="selectedTextForAI"
       @apply="handleApplyAIText"
     />
+
+    <!-- Save Success Indicator -->
+    <v-snackbar
+      v-model="showSaveSuccess"
+      :timeout="1500"
+      color="success"
+      location="top"
+    >
+      <div class="d-flex align-center gap-2">
+        <v-icon>mdi-check-circle</v-icon>
+        <span>{{ fileSystem.isLocalMode.value ? 'Saved to disk' : 'Saved' }}</span>
+      </div>
+    </v-snackbar>
   </div>
 </template>
 
@@ -231,9 +244,11 @@
 import markdownPlugin from 'prettier/plugins/markdown';
 import { format as prettierFormat } from 'prettier/standalone';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { useFileSystem } from '../composables/useFileSystem';
 import { useGeminiAI } from '../composables/useGeminiAI';
 import { useTabsStore } from '../stores/tabsStore';
 import AIAssistantDialog from './AIAssistantDialog.vue';
+
 
 interface Props {
   modelValue: string
@@ -335,6 +350,9 @@ onUnmounted(() => {
   document.removeEventListener('mouseup', stopToolbarDrag)
 })
 
+// Local file system integration for Obsidian
+const fileSystem = useFileSystem()
+
 // AI features
 const geminiAI = useGeminiAI()
 const showContextMenu = ref(false)
@@ -406,6 +424,13 @@ const redo = () => {
 }
 
 const handleKeydown = (e: KeyboardEvent) => {
+  // Ctrl+S or Cmd+S for Save
+  if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+    e.preventDefault()
+    handleSave()
+    return
+  }
+
   // Ctrl+Z or Cmd+Z for Undo
   if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
     e.preventDefault()
@@ -418,6 +443,36 @@ const handleKeydown = (e: KeyboardEvent) => {
     e.preventDefault()
     redo()
     return
+  }
+}
+
+// Save functionality - works for both browser and local modes
+const isSaving = ref(false)
+const showSaveSuccess = ref(false)
+
+const handleSave = async () => {
+  if (isSaving.value) return
+  
+  try {
+    isSaving.value = true
+    
+    // If in local file system mode, save to disk
+    if (fileSystem.isLocalMode.value) {
+      const success = await fileSystem.saveCurrentFile()
+      if (success) {
+        showSaveSuccess.value = true
+        setTimeout(() => { showSaveSuccess.value = false }, 1500)
+      }
+    } else {
+      // In browser mode, the content is already auto-saved to localStorage
+      // Just show a brief confirmation
+      showSaveSuccess.value = true
+      setTimeout(() => { showSaveSuccess.value = false }, 1500)
+    }
+  } catch (err) {
+    console.error('Failed to save:', err)
+  } finally {
+    isSaving.value = false
   }
 }
 

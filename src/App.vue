@@ -6,7 +6,7 @@
       class="sidebar-drawer"
       floating
     >
-      <FileList />
+      <SidebarContent />
     </v-navigation-drawer>
 
     <v-app-bar class="app-header" flat height="48">
@@ -110,11 +110,11 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
-import FileList from './components/FileList.vue'
 import MarkdownEditor from './components/MarkdownEditor.vue'
 import MarkdownPreview from './components/MarkdownPreview.vue'
 import SettingsDialog from './components/SettingsDialog.vue'
 import SettingsMenu from './components/SettingsMenu.vue'
+import SidebarContent from './components/SidebarContent.vue'
 import SplitPane from './components/SplitPane.vue'
 import StatusBar from './components/StatusBar.vue'
 import TabBar from './components/TabBar.vue'
