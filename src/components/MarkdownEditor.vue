@@ -250,6 +250,32 @@
         <span>{{ fileSystem.isLocalMode.value ? 'Saved to disk' : 'Saved' }}</span>
       </div>
     </v-snackbar>
+
+    <!-- External Change Dialog -->
+    <v-dialog v-model="showExternalChangeDialog" persistent max-width="400">
+      <v-card>
+        <v-card-title class="text-h5 text-warning">
+          <v-icon color="warning" class="mr-2">mdi-alert</v-icon>
+          External Change Detected
+        </v-card-title>
+        <v-card-text>
+          The file has been modified on the disk (e.g., in Obsidian).<br>
+          Do you want to reload the file?
+          <div class="text-caption mt-2 text-medium-emphasis">
+            Note: Reloading will discard your current unsaved changes in this editor.
+          </div>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer></v-spacer>
+          <v-btn color="grey" variant="text" @click="showExternalChangeDialog = false">
+            Keep My Version
+          </v-btn>
+          <v-btn color="primary" variant="tonal" @click="handleReloadFile">
+            Reload from Disk
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </div>
 </template>
 
@@ -349,22 +375,45 @@ const stopToolbarDrag = () => {
   document.removeEventListener('mouseup', stopToolbarDrag)
 }
 
+// Local file system integration for Obsidian
+const fileSystem = useFileSystem()
+const showExternalChangeDialog = ref(false)
+
+const checkFileChanges = async () => {
+  if (fileSystem.isLocalMode.value) {
+    const hasChanged = await fileSystem.checkExternalChange()
+    if (hasChanged) {
+      showExternalChangeDialog.value = true
+    }
+  }
+}
+
+const handleReloadFile = async () => {
+  await fileSystem.reloadCurrentFile()
+  showExternalChangeDialog.value = false
+  // Update local content from store
+  if (props.tabId === tabsStore.activeTabId) {
+    localContent.value = tabsStore.activeTabContent
+  }
+}    
+
 onMounted(() => {
   // Initial check for scroll indicators
   setTimeout(updateScrollIndicators, 100)
   
   // Update on resize
   window.addEventListener('resize', updateScrollIndicators)
+  
+  // Check for external file changes on window focus
+  window.addEventListener('focus', checkFileChanges)
 })
 
 onUnmounted(() => {
   window.removeEventListener('resize', updateScrollIndicators)
+  window.removeEventListener('focus', checkFileChanges)
   document.removeEventListener('mousemove', handleToolbarDragMove)
   document.removeEventListener('mouseup', stopToolbarDrag)
 })
-
-// Local file system integration for Obsidian
-const fileSystem = useFileSystem()
 
 // AI features
 const geminiAI = useGeminiAI()

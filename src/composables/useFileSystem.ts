@@ -31,6 +31,10 @@ export interface UseFileSystemReturn {
     saveCurrentFile: () => Promise<boolean>
     createNewFile: (name?: string) => Promise<LocalFile | null>
 
+    // Change detection
+    checkExternalChange: () => Promise<boolean>
+    reloadCurrentFile: () => Promise<void>
+
     // Mode operations
     switchToBrowserMode: () => void
 
@@ -205,6 +209,63 @@ export function useFileSystem(): UseFileSystemReturn {
         }
     )
 
+    // Check if the current file has been modified externally
+    async function checkExternalChange(): Promise<boolean> {
+        if (!isLocalMode.value) return false
+
+        const activeTab = tabsStore.activeTab
+        if (!activeTab) return false
+
+        const filePath = tabToFilePath.get(activeTab.id)
+        if (!filePath) return false
+
+        const file = fileSystemStore.findFileByPath(filePath)
+        if (!file || !file.lastModified) return false
+
+        try {
+            const diskFile = await file.handle.getFile()
+            // If disk file is newer than our internal record (with 1s tolerance)
+            if (diskFile.lastModified > file.lastModified + 1000) {
+                console.log('[FileSystem] External change detected:', filePath)
+                return true
+            }
+        } catch (err) {
+            console.error('Failed to check file status:', err)
+        }
+
+        return false
+    }
+
+    // Reload the current file from disk
+    async function reloadCurrentFile(): Promise<void> {
+        const activeTab = tabsStore.activeTab
+        if (!activeTab) return
+
+        const filePath = tabToFilePath.get(activeTab.id)
+        if (!filePath) return
+
+        const file = fileSystemStore.findFileByPath(filePath)
+        if (!file) return
+
+        try {
+            const content = await fileSystemStore.readFile(file.handle)
+            const diskFile = await file.handle.getFile()
+
+            // Update tab content
+            tabsStore.updateTabContent(activeTab.id, content)
+
+            // Update lastModified
+            file.lastModified = diskFile.lastModified
+
+            // Re-sync editor history (optional, currently resetting history might be safer to avoid mixing states)
+            // But tabsStore.updateTabContent usually keeps history intact or appends.
+            // For a full reload, we might want to consider how to handle undo stack.
+            // For now, simple content update is sufficient.
+        } catch (err) {
+            console.error('Failed to reload file:', err)
+        }
+    }
+
     return {
         // State (computed refs)
         isSupported: computed(() => isSupported.value),
@@ -224,6 +285,10 @@ export function useFileSystem(): UseFileSystemReturn {
         openFile,
         saveCurrentFile,
         createNewFile,
+
+        // Change detection
+        checkExternalChange,
+        reloadCurrentFile,
 
         // Mode operations
         switchToBrowserMode,
