@@ -26,7 +26,7 @@ function generateId(): string {
 export const useFileSystemStore = defineStore('fileSystem', () => {
     // State
     const mode = ref<StorageMode>('browser')
-    const vaults = shallowRef<VaultInfo[]>([])  // Multiple vaults
+    const vaults = ref<VaultInfo[]>([])  // Use ref instead of shallowRef for deep reactivity
     const currentFileHandle = shallowRef<FileSystemFileHandle | null>(null)
     const currentFilePath = ref<string | null>(null)
     const isLoading = ref(false)
@@ -360,23 +360,27 @@ export const useFileSystemStore = defineStore('fileSystem', () => {
         const vaultIndex = vaults.value.findIndex(v => v.id === vaultId)
         if (vaultIndex === -1) return
 
-        function toggleInEntries(entries: (LocalFile | LocalDirectory)[]): boolean {
-            for (const entry of entries) {
+        // Deep clone function for entries to ensure reactivity
+        function cloneEntries(entries: (LocalFile | LocalDirectory)[]): (LocalFile | LocalDirectory)[] {
+            return entries.map(entry => {
                 if (entry.kind === 'directory') {
-                    if (entry.path === dirPath) {
-                        entry.expanded = !entry.expanded
-                        return true
+                    return {
+                        ...entry,
+                        children: cloneEntries(entry.children),
+                        expanded: entry.path === dirPath ? !entry.expanded : entry.expanded
                     }
-                    if (toggleInEntries(entry.children)) return true
                 }
-            }
-            return false
+                return { ...entry }
+            })
         }
 
         const vault = vaults.value[vaultIndex]
-        toggleInEntries(vault.entries)
-        // Trigger reactivity
-        vaults.value = [...vaults.value]
+        const newVaults = [...vaults.value]
+        newVaults[vaultIndex] = {
+            ...vault,
+            entries: cloneEntries(vault.entries)
+        }
+        vaults.value = newVaults
     }
 
     // Refresh a specific vault's contents
