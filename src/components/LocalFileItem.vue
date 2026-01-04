@@ -168,6 +168,17 @@
         <v-list-item @click="startRename" prepend-icon="mdi-pencil-outline">
           <v-list-item-title>Rename</v-list-item-title>
         </v-list-item>
+
+        <v-list-item 
+          v-if="entry.kind === 'file'"
+          @click="handleSmartRename" 
+          prepend-icon="mdi-magic-staff"
+          :disabled="isGeneratingName"
+        >
+          <v-list-item-title>
+            {{ isGeneratingName ? 'Generating Name...' : 'Smart Rename (AI)' }}
+          </v-list-item-title>
+        </v-list-item>
         
         <v-list-item @click="handleDelete" prepend-icon="mdi-delete-outline" class="delete-item">
           <v-list-item-title>Delete</v-list-item-title>
@@ -179,6 +190,8 @@
 
 <script setup lang="ts">
 import { computed, nextTick, ref } from 'vue';
+import { useGeminiAI } from '../composables/useGeminiAI';
+import { useFileSystemStore } from '../stores/fileSystemStore';
 import type { LocalDirectory, LocalFile } from '../types/fileSystem';
 
 const props = defineProps<{
@@ -205,6 +218,10 @@ const isRenaming = ref(false)
 const newName = ref('')
 const renameInput = ref<HTMLInputElement | null>(null)
 const isDropTarget = ref(false)
+const isGeneratingName = ref(false)
+
+const fileSystemStore = useFileSystemStore()
+const { generateFilename } = useGeminiAI()
 
 const displayName = computed(() => {
   if (props.entry.kind !== 'file') return props.entry.name
@@ -260,6 +277,36 @@ function handleNewFolder() {
   contextMenuOpen.value = false
   if (props.entry.kind === 'directory') {
     emit('create-folder', props.vaultId, props.entry.path)
+  }
+}
+
+async function handleSmartRename() {
+  contextMenuOpen.value = false
+  if (props.entry.kind !== 'file') return
+
+  try {
+    isGeneratingName.value = true
+    // Need to cast because entry.handle in LocalFile is FileSystemFileHandle
+    // but props.entry is LocalFile | LocalDirectory
+    const content = await fileSystemStore.readFile((props.entry as LocalFile).handle)
+    const suggestedName = await generateFilename(content)
+    
+    if (suggestedName) {
+      newName.value = suggestedName
+      isRenaming.value = true
+      nextTick(() => {
+        if (renameInput.value) {
+          renameInput.value.focus()
+          renameInput.value.select()
+        }
+      })
+    }
+  } catch (error) {
+    console.error('Smart rename failed:', error)
+    // Fallback to normal rename if AI fails
+    startRename()
+  } finally {
+    isGeneratingName.value = false
   }
 }
 

@@ -250,6 +250,45 @@ ${originalText}
         testConnection,
         improveText,
         chatAboutText,
+        generateFilename: async (content: string): Promise<string> => {
+            const client = getClient()
+            if (!client) {
+                throw new Error('API key not configured')
+            }
+
+            try {
+                isProcessing.value = true
+                error.value = null
+
+                const prompt = `CRITICAL: Generate a short, descriptive filename (MAX 50 chars) for the following markdown content.
+Rules:
+1. Use kebab-case (lowercase words separated by hyphens).
+2. Do NOT include the file extension (.md).
+3. Output ONLY the filename. No explanations or other text.
+4. If the content is empty or too short, suggest "untitled-note".
+
+Content:
+${content.slice(0, 2000)}` // Limit content length to avoid token limits
+
+                const response = await client.models.generateContent({
+                    model: MODEL_NAME,
+                    contents: prompt,
+                })
+
+                const result = response.text
+                if (!result) {
+                    throw new Error('No response from AI')
+                }
+
+                return result.trim().replace(/\.md$/, '')
+            } catch (e) {
+                console.error('Gemini API generate filename failed:', e)
+                error.value = e instanceof Error ? e.message : 'Failed to generate filename'
+                throw e
+            } finally {
+                isProcessing.value = false
+            }
+        },
 
         // Quick actions
         quickActions,
