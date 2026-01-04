@@ -1,20 +1,19 @@
 <template>
-  <div 
-    class="local-file-item"
-    :draggable="true"
-    @dragstart="handleDragStart"
-    @dragover="handleDragOver"
-    @dragleave="handleDragLeave"
-    @drop="handleDrop"
-  >
+  <div class="local-file-item">
     <!-- Directory -->
     <template v-if="entry.kind === 'directory'">
       <div 
         class="item-row directory-row"
-        :class="{ expanded: entry.expanded, 'drop-target': isDropTarget }"
+        :class="{ expanded: entry.expanded, 'drop-target': isDropTarget, 'dragging': isDragging }"
         :style="{ paddingLeft: `${depth * 12 + 8}px` }"
+        draggable="true"
         @click="handleToggleDirectory"
         @contextmenu.prevent="showContextMenu"
+        @dragstart="handleDragStart"
+        @dragend="handleDragEnd"
+        @dragover="handleDragOver"
+        @dragleave="handleDragLeave"
+        @drop="handleDrop"
       >
         <v-icon size="14" class="expand-icon">
           {{ entry.expanded ? 'mdi-chevron-down' : 'mdi-chevron-right' }}
@@ -93,10 +92,14 @@
     <template v-else>
       <div 
         class="item-row file-row"
+        :class="{ 'dragging': isDragging }"
         :style="{ paddingLeft: `${depth * 12 + 22}px` }"
+        draggable="true"
         @click="handleOpenFile"
         @dblclick="handleOpenFile"
         @contextmenu.prevent="showContextMenu"
+        @dragstart="handleDragStart"
+        @dragend="handleDragEnd"
       >
         <v-icon size="16" class="file-icon" color="primary">mdi-file-document-outline</v-icon>
         
@@ -218,6 +221,7 @@ const isRenaming = ref(false)
 const newName = ref('')
 const renameInput = ref<HTMLInputElement | null>(null)
 const isDropTarget = ref(false)
+const isDragging = ref(false)
 const isGeneratingName = ref(false)
 
 const fileSystemStore = useFileSystemStore()
@@ -349,6 +353,7 @@ function handleDelete() {
 
 // Drag and Drop
 function handleDragStart(event: DragEvent) {
+  isDragging.value = true
   if (event.dataTransfer) {
     event.dataTransfer.effectAllowed = 'move'
     event.dataTransfer.setData('application/json', JSON.stringify({
@@ -357,6 +362,10 @@ function handleDragStart(event: DragEvent) {
       kind: props.entry.kind
     }))
   }
+}
+
+function handleDragEnd() {
+  isDragging.value = false
 }
 
 function handleDragOver(event: DragEvent) {
@@ -497,6 +506,12 @@ function handleDrop(event: DragEvent) {
 
 .file-row:active {
   background: rgba(var(--v-theme-primary), 0.15);
+}
+
+/* Dragging state */
+.item-row.dragging {
+  opacity: 0.5;
+  background: rgba(var(--v-theme-primary), 0.1);
 }
 
 .directory-children {
