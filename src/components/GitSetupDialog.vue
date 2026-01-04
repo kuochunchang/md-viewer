@@ -358,27 +358,6 @@
                 <span v-if="syncResult.pushedFiles">Pushed {{ syncResult.pushedFiles }} commits.</span>
               </v-alert>
             </div>
-            
-            <!-- Danger Zone -->
-            <div v-if="selectedVaultId" class="setting-item mt-4">
-              <div class="setting-label">
-                <span class="setting-name text-error">Danger Zone</span>
-              </div>
-              <v-btn
-                color="error"
-                variant="outlined"
-                block
-                class="mt-2"
-                :loading="isResetting"
-                @click="showResetConfirm = true"
-              >
-                <v-icon start>mdi-alert</v-icon>
-                Reset Git Repository
-              </v-btn>
-              <div class="get-help-text mt-1 text-caption text-error">
-                Removes .git folder and clears this vault's Git config. Files are kept.
-              </div>
-            </div>
           </div>
         </div>
 
@@ -431,6 +410,58 @@
             </v-expand-transition>
           </div>
         </div>
+
+        <!-- Danger Zone Section -->
+        <div class="settings-section danger-zone-section">
+          <div class="section-header">
+            <v-icon size="small" color="error" class="mr-2">mdi-alert-octagon</v-icon>
+            <span class="section-title text-error">Danger Zone</span>
+          </div>
+
+          <div class="section-content">
+            <!-- Clear Credentials -->
+            <div v-if="hasCredentialsInput" class="setting-item">
+              <div class="setting-label">
+                <span class="setting-name">Clear Authentication</span>
+                <span class="setting-hint">Remove GitHub token and author info</span>
+              </div>
+              <v-btn
+                color="error"
+                variant="outlined"
+                size="small"
+                class="mt-2"
+                @click="showClearCredentialsConfirm = true"
+              >
+                <v-icon start size="16">mdi-key-remove</v-icon>
+                Clear Credentials
+              </v-btn>
+            </div>
+
+            <!-- Reset Git Repository -->
+            <div v-if="selectedVaultId && vaultStatus?.isGitRepo" class="setting-item">
+              <div class="setting-label">
+                <span class="setting-name">Reset Git Repository</span>
+                <span class="setting-hint">Removes .git folder. Files are kept.</span>
+              </div>
+              <v-btn
+                color="error"
+                variant="outlined"
+                size="small"
+                class="mt-2"
+                :loading="isResetting"
+                @click="showResetConfirm = true"
+              >
+                <v-icon start size="16">mdi-delete-alert</v-icon>
+                Reset Git
+              </v-btn>
+            </div>
+
+            <!-- No dangerous actions available -->
+            <div v-if="!hasCredentialsInput && (!selectedVaultId || !vaultStatus?.isGitRepo)" class="text-caption text-medium-emphasis">
+              No dangerous actions available.
+            </div>
+          </div>
+        </div>
       </v-card-text>
 
       <v-divider />
@@ -439,14 +470,6 @@
       <v-card-actions class="dialog-actions">
         <v-btn variant="text" @click="close">Cancel</v-btn>
         <v-spacer />
-        <v-btn
-          v-if="hasCredentialsInput"
-          color="error"
-          variant="text"
-          @click="handleClearCredentials"
-        >
-          Clear Credentials
-        </v-btn>
         <v-btn
           color="primary"
           variant="flat"
@@ -475,6 +498,28 @@
           <v-btn variant="text" @click="showResetConfirm = false">Cancel</v-btn>
           <v-btn color="error" variant="flat" :loading="isResetting" @click="handleConfirmReset">
             Yes, Reset
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <!-- Clear Credentials Confirmation Dialog -->
+    <v-dialog v-model="showClearCredentialsConfirm" max-width="400">
+      <v-card>
+        <v-card-title class="text-error">
+          <v-icon start color="error">mdi-alert-circle</v-icon>
+          Clear All Credentials?
+        </v-card-title>
+        <v-card-text>
+          This will remove your GitHub token, author name, and email from storage.
+          <br><br>
+          You will need to re-enter these credentials to use Git sync again. Are you sure?
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn variant="text" @click="showClearCredentialsConfirm = false">Cancel</v-btn>
+          <v-btn color="error" variant="flat" @click="handleConfirmClearCredentials">
+            Yes, Clear
           </v-btn>
         </v-card-actions>
       </v-card>
@@ -524,6 +569,7 @@ const isCheckingRepo = ref(false)
 const isCreatingRepo = ref(false)
 const isResetting = ref(false)
 const showResetConfirm = ref(false)
+const showClearCredentialsConfirm = ref(false)
 const repoCheckResult = ref<'exists' | 'not-found' | 'error' | null>(null)
 const repoCheckError = ref<string | null>(null)
 const githubUsername = ref<string | null>(null)
@@ -896,9 +942,10 @@ async function handlePullOnly() {
   }
 }
 
-function handleClearCredentials() {
+function handleConfirmClearCredentials() {
   gitStore.clearCredentials()
   localCredentials.value = { token: '', userName: '', userEmail: '' }
+  showClearCredentialsConfirm.value = false
 }
 
 function handleSave() {
@@ -1006,5 +1053,14 @@ function handleSave() {
   align-items: center;
   font-size: 12px;
   color: rgba(var(--v-theme-on-surface), 0.6);
+}
+
+.danger-zone-section {
+  background-color: rgba(var(--v-theme-error), 0.02);
+  border-top: 1px dashed rgba(var(--v-theme-error), 0.2);
+}
+
+.danger-zone-section .section-content {
+  gap: 12px;
 }
 </style>
