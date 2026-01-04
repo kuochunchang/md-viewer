@@ -1,12 +1,14 @@
 <template>
-  <v-app class="app-wrapper">
+  <v-app class="app-wrapper" :class="{ 'is-resizing': isResizing }">
     <v-navigation-drawer
       v-model="showSidebar"
-      width="280"
+      :width="sidebarWidth"
       class="sidebar-drawer"
       floating
     >
       <SidebarContent />
+      <!-- Resize Handle -->
+      <div class="resize-handle" @mousedown="startResize"></div>
     </v-navigation-drawer>
 
     <v-app-bar class="app-header" flat height="48">
@@ -85,7 +87,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import MarkdownEditor from './components/MarkdownEditor.vue'
 import MarkdownPreview from './components/MarkdownPreview.vue'
 import SettingsDialog from './components/SettingsDialog.vue'
@@ -109,6 +111,34 @@ const showSidebar = computed({
     }
   }
 })
+
+// Sidebar Resizing
+const sidebarWidth = ref(280)
+const isResizing = ref(false)
+
+function startResize() {
+  isResizing.value = true
+  document.addEventListener('mousemove', handleResize)
+  document.addEventListener('mouseup', stopResize)
+  // Prevent text selection during drag
+  document.body.style.userSelect = 'none'
+  document.body.style.cursor = 'col-resize'
+}
+
+function handleResize(e: MouseEvent) {
+  if (!isResizing.value) return
+  // Min width 200, Max width 600
+  const newWidth = Math.max(200, Math.min(600, e.clientX))
+  sidebarWidth.value = newWidth
+}
+
+function stopResize() {
+  isResizing.value = false
+  document.removeEventListener('mousemove', handleResize)
+  document.removeEventListener('mouseup', stopResize)
+  document.body.style.userSelect = ''
+  document.body.style.cursor = ''
+}
 
 // Scroll Sync Logic
 const editorRef = ref<any>(null)
@@ -140,6 +170,10 @@ function handleContentUpdate(content: string) {
 onMounted(() => {
   console.log('[App] Mounting...')
   tabsStore.initialize()
+})
+
+onUnmounted(() => {
+  stopResize()
 })
 </script>
 
@@ -198,6 +232,34 @@ onMounted(() => {
   .v-toolbar__content {
     padding: 0;
     overflow: visible;
+  }
+}
+
+
+// Resize Handle
+.resize-handle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 4px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 100;
+  background: transparent;
+  transition: background 0.2s;
+  
+  &:hover,
+  &:active {
+    background: rgba(var(--v-theme-primary), 0.5);
+  }
+}
+
+.app-wrapper.is-resizing {
+  cursor: col-resize;
+  user-select: none;
+  
+  :deep(*) {
+    pointer-events: none; /* Prevent iframe interference */
   }
 }
 

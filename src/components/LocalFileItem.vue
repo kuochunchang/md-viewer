@@ -429,10 +429,23 @@ function handleDrop(event: DragEvent) {
   display: flex;
   opacity: 0;
   transition: opacity 0.15s;
-  margin-left: auto;
+  /* Float on the right */
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  padding-right: 8px; /* space from right edge */
+  padding-left: 24px; /* affordance for gradient */
+  align-items: center;
   z-index: 10;
-  background: inherit;
   gap: 2px;
+  
+  /* Gradient background to fade out text */
+  background: linear-gradient(
+    to right, 
+    transparent 0%, 
+    var(--bg-sidebar) 30%
+  );
 }
 
 .file-row:active {
