@@ -61,7 +61,7 @@
                 {{ getStatusText(vault.status) }}
               </span>
 
-              <!-- Sync Button -->
+              <!-- Sync Button (only when git is initialized and has remote) -->
               <v-btn
                 v-if="vault.status.isGitRepo && vault.status.hasRemote"
                 icon
@@ -75,13 +75,12 @@
                 <v-icon size="16">mdi-sync</v-icon>
               </v-btn>
 
-              <!-- Setup Button -->
+              <!-- Settings Button (always visible) -->
               <v-btn
-                v-else
                 icon
                 variant="text"
                 size="x-small"
-                title="Setup Git"
+                title="Git Settings"
                 @click="$emit('setup-vault', vault.id)"
               >
                 <v-icon size="16">mdi-cog-outline</v-icon>
