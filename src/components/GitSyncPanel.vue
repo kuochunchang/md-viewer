@@ -161,6 +161,7 @@ const vaultsWithStatus = computed(() => {
         currentBranch: null,
         changedFilesCount: 0,
         hasUnpushedCommits: false,
+        hasRemoteUpdates: false,
         lastSyncTime: null,
         syncStatus: 'idle' as SyncStatus,
         errorMessage: null,
@@ -198,6 +199,9 @@ function getStatusIcon(status: VaultGitStatus): string {
       status.syncStatus === 'pushing' || status.syncStatus === 'committing') {
     return 'mdi-sync'
   }
+  if (status.hasRemoteUpdates) {
+    return 'mdi-cloud-download'
+  }
   if (status.changedFilesCount > 0 || status.hasUnpushedCommits) {
     return 'mdi-source-branch-sync'
   }
@@ -208,6 +212,7 @@ function getStatusColor(status: VaultGitStatus): string {
   if (!status.isGitRepo) return 'grey'
   if (status.syncStatus === 'error') return 'error'
   if (status.syncStatus === 'conflict') return 'warning'
+  if (status.hasRemoteUpdates) return 'info'
   if (status.changedFilesCount > 0 || status.hasUnpushedCommits) {
     return 'info'
   }
@@ -226,13 +231,18 @@ function getStatusText(status: VaultGitStatus): string {
     case 'error': return status.errorMessage || 'Error'
     case 'conflict': return 'Conflicts'
     case 'idle':
+      // Build status message
+      const parts: string[] = []
       if (status.changedFilesCount > 0) {
-        return `${status.changedFilesCount} changes`
+        parts.push(`${status.changedFilesCount} changes`)
       }
       if (status.hasUnpushedCommits) {
-        return 'Unpushed commits'
+        parts.push('Unpushed')
       }
-      return 'Up to date'
+      if (status.hasRemoteUpdates) {
+        parts.push('Updates available')
+      }
+      return parts.length > 0 ? parts.join(' • ') : 'Up to date'
     default:
       return 'Unknown'
   }

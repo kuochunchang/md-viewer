@@ -233,8 +233,9 @@
 
 <script setup lang="ts">
 import { storeToRefs } from 'pinia'
-import { onMounted, ref, watch } from 'vue'
+import { onMounted, onUnmounted, ref, watch } from 'vue'
 import { useFileSystem } from '../composables/useFileSystem'
+import { useGitAutoSync } from '../composables/useGitAutoSync'
 import { useGitSync } from '../composables/useGitSync'
 import { useFileSystemStore } from '../stores/fileSystemStore'
 import { useGitStore } from '../stores/gitStore'
@@ -246,6 +247,7 @@ import LocalFileItem from './LocalFileItem.vue'
 const fileSystemStore = useFileSystemStore()
 const gitStore = useGitStore()
 const gitSync = useGitSync()
+const gitAutoSync = useGitAutoSync()
 const { isLoading, error, isSupported, vaults } = storeToRefs(fileSystemStore)
 const {
   addVault,
@@ -302,11 +304,15 @@ onMounted(async () => {
       try {
         const status = await gitSync.getStatus(vault.id, vault.handle)
         gitStore.updateVaultStatus(vault.id, status)
-      } catch (error) {
-        console.warn(`Failed to refresh Git status for vault ${vault.name}:`, error)
+      } catch (err) {
+        console.warn(`Failed to refresh Git status for vault ${vault.name}:`, err)
       }
     }
   }
+  
+  // Start automatic Git status checking (every 30 seconds)
+  // This also starts auto-sync for vaults with it enabled
+  gitAutoSync.startAll()
   
   // Get list of saved vaults for reconnection UI
   savedVaultNames.value = await fileSystemStore.getSavedVaultNames()
@@ -314,6 +320,11 @@ onMounted(async () => {
   // Remove already connected vaults from the saved list
   const connectedIds = new Set(vaults.value.map(v => v.id))
   savedVaultNames.value = savedVaultNames.value.filter(v => !connectedIds.has(v.id))
+})
+
+// Cleanup on unmount
+onUnmounted(() => {
+  gitAutoSync.stopAll()
 })
 
 async function handleAddVault() {

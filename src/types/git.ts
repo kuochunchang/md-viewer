@@ -84,6 +84,8 @@ export interface VaultGitStatus {
     changedFilesCount: number
     /** Has unpushed commits */
     hasUnpushedCommits: boolean
+    /** Has remote updates available (need to pull) */
+    hasRemoteUpdates: boolean
     /** Last sync timestamp */
     lastSyncTime: number | null
     /** Current sync status */
@@ -103,6 +105,7 @@ export const DEFAULT_VAULT_GIT_STATUS: VaultGitStatus = {
     currentBranch: null,
     changedFilesCount: 0,
     hasUnpushedCommits: false,
+    hasRemoteUpdates: false,
     lastSyncTime: null,
     syncStatus: 'idle',
     errorMessage: null,

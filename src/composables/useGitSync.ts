@@ -169,6 +169,7 @@ export function useGitSync() {
                 currentBranch: null,
                 changedFilesCount: 0,
                 hasUnpushedCommits: false,
+                hasRemoteUpdates: false,
                 lastSyncTime: gitStore.vaultConfigs[vaultId]?.status.lastSyncTime || null,
                 syncStatus: 'idle',
                 errorMessage: null,
@@ -198,12 +199,16 @@ export function useGitSync() {
             }
         }
 
+        // Get the current hasRemoteUpdates from store (updated by fetch check)
+        const hasRemoteUpdates = gitStore.vaultConfigs[vaultId]?.status.hasRemoteUpdates || false
+
         return {
             isGitRepo: true,
             hasRemote: remotes.length > 0,
             currentBranch: branch,
             changedFilesCount: changes.length,
             hasUnpushedCommits: hasUnpushed,
+            hasRemoteUpdates,
             lastSyncTime: gitStore.vaultConfigs[vaultId]?.status.lastSyncTime || null,
             syncStatus: gitStore.vaultConfigs[vaultId]?.status.syncStatus || 'idle',
             errorMessage: gitStore.vaultConfigs[vaultId]?.status.errorMessage || null,
