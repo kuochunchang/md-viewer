@@ -59,6 +59,15 @@
                   icon
                   variant="text"
                   size="x-small"
+                  title="New Folder"
+                  @click.stop="handleNewFolderRoot(vault.id)"
+                >
+                  <v-icon size="14">mdi-folder-plus-outline</v-icon>
+                </v-btn>
+                <v-btn
+                  icon
+                  variant="text"
+                  size="x-small"
                   title="Remove Vault"
                   @click.stop="handleRemoveVault(vault.id)"
                 >
@@ -77,6 +86,11 @@
                 :depth="0"
                 @open-file="handleOpenFile"
                 @toggle-directory="handleToggleDirectory"
+                @create-file="handleCreateFileInDir"
+                @create-folder="handleCreateFolder"
+                @rename="handleRename"
+                @delete="handleDelete"
+                @move="handleMove"
               />
               <div v-if="vault.entries.length === 0" class="empty-vault">
                 <span>No markdown files found</span>
@@ -169,6 +183,51 @@
     >
       {{ successMessage }}
     </v-snackbar>
+
+    <!-- Delete Confirmation Dialog -->
+    <v-dialog v-model="showDeleteConfirm" max-width="400">
+      <v-card>
+        <v-card-title class="text-h6">
+          <v-icon color="error" class="mr-2">mdi-alert-circle-outline</v-icon>
+          Confirm Delete
+        </v-card-title>
+        <v-card-text>
+          Are you sure you want to delete 
+          <strong>{{ deleteTarget?.path.split('/').pop() }}</strong>?
+          <br>
+          <span v-if="deleteTarget?.kind === 'directory'" class="text-error">
+            This will delete all files and folders inside.
+          </span>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn variant="text" @click="cancelDelete">Cancel</v-btn>
+          <v-btn color="error" variant="elevated" @click="confirmDelete">Delete</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <!-- Input Dialog (for new file/folder) -->
+    <v-dialog v-model="showInputDialog" max-width="400">
+      <v-card>
+        <v-card-title class="text-h6">{{ inputDialogTitle }}</v-card-title>
+        <v-card-text>
+          <v-text-field
+            v-model="inputDialogValue"
+            label="Name"
+            variant="outlined"
+            density="compact"
+            autofocus
+            @keydown.enter="confirmInput"
+          />
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn variant="text" @click="closeInputDialog">Cancel</v-btn>
+          <v-btn color="primary" variant="elevated" @click="confirmInput">Create</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </div>
 </template>
 
@@ -210,6 +269,14 @@ const showGitSettings = ref(false)
 const selectedVaultForGit = ref<string | null>(null)
 const showSuccess = ref(false)
 const successMessage = ref('')
+
+// File management dialog state
+const showDeleteConfirm = ref(false)
+const deleteTarget = ref<{ vaultId: string; path: string; kind: 'file' | 'directory' } | null>(null)
+const showInputDialog = ref(false)
+const inputDialogTitle = ref('')
+const inputDialogValue = ref('')
+const inputDialogCallback = ref<((value: string) => void) | null>(null)
 
 // Watch for errors
 watch(error, (newError) => {
@@ -285,8 +352,97 @@ async function handleNewFile(vaultId: string) {
   await createNewFile(vaultId)
 }
 
+async function handleNewFolderRoot(vaultId: string) {
+  handleCreateFolder(vaultId, '')
+}
+
 async function handleOpenFile(file: LocalFile, vaultId: string) {
   await openFile(file, vaultId)
+}
+
+// File management handlers
+async function handleCreateFileInDir(vaultId: string, parentPath: string) {
+  showInputPrompt('New File', 'Untitled', async (name) => {
+    if (name) {
+      await fileSystemStore.createFileInDirectory(vaultId, parentPath, name)
+    }
+  })
+}
+
+async function handleCreateFolder(vaultId: string, parentPath: string) {
+  showInputPrompt('New Folder', 'New Folder', async (name) => {
+    if (name) {
+      await fileSystemStore.createDirectoryInVault(vaultId, parentPath, name)
+    }
+  })
+}
+
+async function handleRename(vaultId: string, path: string, kind: 'file' | 'directory', newName: string) {
+  if (!newName) return
+  
+  if (kind === 'file') {
+    await fileSystemStore.renameFileInVault(vaultId, path, newName)
+  } else {
+    await fileSystemStore.renameDirectoryInVault(vaultId, path, newName)
+  }
+}
+
+function handleDelete(vaultId: string, path: string, kind: 'file' | 'directory') {
+  deleteTarget.value = { vaultId, path, kind }
+  showDeleteConfirm.value = true
+}
+
+async function confirmDelete() {
+  if (!deleteTarget.value) return
+  
+  const { vaultId, path, kind } = deleteTarget.value
+  
+  if (kind === 'file') {
+    await fileSystemStore.deleteFileInVault(vaultId, path)
+  } else {
+    await fileSystemStore.deleteDirectoryInVault(vaultId, path)
+  }
+  
+  showDeleteConfirm.value = false
+  deleteTarget.value = null
+  successMessage.value = `${kind === 'file' ? 'File' : 'Folder'} deleted successfully`
+  showSuccess.value = true
+}
+
+function cancelDelete() {
+  showDeleteConfirm.value = false
+  deleteTarget.value = null
+}
+
+async function handleMove(vaultId: string, sourcePath: string, targetPath: string, kind: 'file' | 'directory') {
+  if (kind === 'file') {
+    await fileSystemStore.moveFileInVault(vaultId, sourcePath, targetPath)
+  } else {
+    await fileSystemStore.moveDirectoryInVault(vaultId, sourcePath, targetPath)
+  }
+  successMessage.value = `${kind === 'file' ? 'File' : 'Folder'} moved successfully`
+  showSuccess.value = true
+}
+
+// Input dialog helpers
+function showInputPrompt(title: string, defaultValue: string, callback: (value: string) => void) {
+  inputDialogTitle.value = title
+  inputDialogValue.value = defaultValue
+  inputDialogCallback.value = callback
+  showInputDialog.value = true
+}
+
+function confirmInput() {
+  if (inputDialogCallback.value && inputDialogValue.value.trim()) {
+    inputDialogCallback.value(inputDialogValue.value.trim())
+  }
+  closeInputDialog()
+}
+
+function closeInputDialog() {
+  showInputDialog.value = false
+  inputDialogValue.value = ''
+  inputDialogCallback.value = null
 }
 
 function clearError() {
