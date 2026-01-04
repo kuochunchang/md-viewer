@@ -79,37 +79,13 @@
       </div>
     </v-main>
 
-
-    <v-snackbar
-      v-model="showConflictSnackbar"
-      color="warning"
-      location="top"
-      :timeout="-1" 
-      class="sync-conflict-snackbar"
-    >
-      <div class="d-flex align-center">
-        <v-icon start icon="mdi-cloud-alert" color="white"></v-icon>
-        <div class="mr-4 text-white">
-          <div class="font-weight-bold">Sync Stopped</div>
-          <div class="text-caption">Cloud data is newer</div>
-        </div>
-        <v-spacer></v-spacer>
-        <v-btn variant="text" size="small" color="white" @click="openSettings">
-          Resolve
-        </v-btn>
-        <v-btn icon size="x-small" variant="text" color="white" @click="showConflictSnackbar = false">
-          <v-icon>mdi-close</v-icon>
-        </v-btn>
-      </div>
-    </v-snackbar>
-
     <!-- Settings Dialog (Global) -->
     <SettingsDialog />
   </v-app>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import MarkdownEditor from './components/MarkdownEditor.vue'
 import MarkdownPreview from './components/MarkdownPreview.vue'
 import SettingsDialog from './components/SettingsDialog.vue'
@@ -118,13 +94,9 @@ import SidebarContent from './components/SidebarContent.vue'
 import SplitPane from './components/SplitPane.vue'
 import StatusBar from './components/StatusBar.vue'
 import TabBar from './components/TabBar.vue'
-import { useGoogleDocs } from './composables/useGoogleDocs'
-import { useSettingsStore } from './stores/settingsStore'
 import { useTabsStore } from './stores/tabsStore'
 
 const tabsStore = useTabsStore()
-const googleDocs = useGoogleDocs()
-const settingsStore = useSettingsStore()
 
 const activeTabContent = computed(() => tabsStore.activeTabContent)
 const fontSize = computed(() => tabsStore.fontSize)
@@ -164,138 +136,10 @@ function handleContentUpdate(content: string) {
   }
 }
 
-// Auto-sync timer and dirty tracking
-let autoSyncTimer: ReturnType<typeof setInterval> | null = null
-let lastSyncedDataHash: string | null = null
-const showConflictSnackbar = ref(false)
-
-function openSettings() {
-  showConflictSnackbar.value = false
-  settingsStore.openSettingsDialog()
-}
-
-// 計算資料的 hash 用於比較
-function getDataHash(data: object): string {
-  return JSON.stringify(data)
-}
-
-// 檢查資料是否有變更
-function hasDataChanged(): boolean {
-  const currentData = tabsStore.getDataForExport()
-  const currentHash = getDataHash(currentData)
-  return currentHash !== lastSyncedDataHash
-}
-
-// 標記資料已同步
-function markAsSynced() {
-  const currentData = tabsStore.getDataForExport()
-  lastSyncedDataHash = getDataHash(currentData)
-}
-
-function setupAutoSync() {
-  // 清除舊的 timer
-  if (autoSyncTimer) {
-    clearInterval(autoSyncTimer)
-    autoSyncTimer = null
-    console.log('[AutoSync] Cleared existing timer')
-  }
-
-  // 檢查是否應該啟用自動同步
-  const isGoogleProvider = settingsStore.settings.provider === 'google'
-  const isAutoSyncEnabled = settingsStore.settings.autoSync
-  const isConnected = googleDocs.isConnected.value
-  
-  console.log('[AutoSync] Setup check:', { 
-    provider: settingsStore.settings.provider,
-    autoSync: isAutoSyncEnabled, 
-    isConnected,
-    interval: settingsStore.settings.syncIntervalMinutes 
-  })
-
-  const shouldAutoSync = isGoogleProvider && isAutoSyncEnabled && isConnected
-
-  if (shouldAutoSync) {
-    const intervalMs = settingsStore.settings.syncIntervalMinutes * 60 * 1000
-    console.log(`[AutoSync] ✅ Starting auto-sync timer, interval: ${settingsStore.settings.syncIntervalMinutes} minutes (${intervalMs}ms)`)
-    
-    autoSyncTimer = setInterval(async () => {
-      console.log('[AutoSync] Timer triggered, checking conditions...')
-      if (googleDocs.isConnected.value && !googleDocs.syncStatus.value.isSyncing) {
-        // 只有在資料有變更時才同步
-        if (hasDataChanged()) {
-          console.log('[AutoSync] Data changed, syncing...')
-          const data = tabsStore.getDataForExport()
-          // 自動同步時不強制覆蓋，遇到衝突則略過
-          const result = await googleDocs.syncToGoogleDocs(data, false)
-          
-          if (result === 'success') {
-            markAsSynced()
-            console.log('[AutoSync] ✅ Sync successful')
-          } else if (result === 'conflict') {
-            console.warn('[AutoSync] ⚠️ Conflict detected, skipping sync to protect remote data')
-            showConflictSnackbar.value = true
-          } else {
-            console.error('[AutoSync] ❌ Sync failed with result:', result)
-          }
-        } else {
-          console.log('[AutoSync] No changes, skipping sync')
-        }
-      } else {
-        console.log('[AutoSync] Skipped - not connected or already syncing')
-      }
-    }, intervalMs)
-  } else {
-    console.log('[AutoSync] ⏸️ Auto-sync not enabled:', { isGoogleProvider, isAutoSyncEnabled, isConnected })
-  }
-}
-
-// 監聽設定變化以更新 auto-sync
-// 注意：使用 getter 函數監聽響應式值，確保變化能被追蹤
-watch(
-  [
-    () => settingsStore.settings.provider,
-    () => settingsStore.settings.autoSync,
-    () => settingsStore.settings.syncIntervalMinutes,
-    googleDocs.isConnected  // 直接傳入 computed ref，不要用 .value
-  ],
-  (newValues, oldValues) => {
-    console.log('[AutoSync] Watch triggered, values changed:', { old: oldValues, new: newValues })
-    setupAutoSync()
-  },
-  { immediate: false }  // 不立即執行，讓 onMounted 處理初始設置
-)
-
 // Initialization
-onMounted(async () => {
+onMounted(() => {
   console.log('[App] Mounting...')
   tabsStore.initialize()
-  
-  // 處理 Google OAuth 回調（如果從 Google 重定向回來）
-  // 注意：initialize() 是異步的，需要等待完成
-  await googleDocs.initialize()
-  console.log('[App] Google Docs initialized, isConnected:', googleDocs.isConnected.value)
-  
-  const oauthSuccess = googleDocs.handleOAuthCallback()
-  
-  // 如果 OAuth 成功，自動開啟設定對話框讓使用者看到連線狀態
-  if (oauthSuccess) {
-    // 稍微延遲以確保狀態已更新
-    setTimeout(() => {
-      settingsStore.openSettingsDialog()
-    }, 500)
-  }
-
-  // 設置 auto-sync（現在 initialize 已完成，狀態應該正確）
-  console.log('[App] Setting up auto-sync...')
-  setupAutoSync()
-})
-
-// Cleanup
-onUnmounted(() => {
-  if (autoSyncTimer) {
-    clearInterval(autoSyncTimer)
-    autoSyncTimer = null
-  }
 })
 </script>
 

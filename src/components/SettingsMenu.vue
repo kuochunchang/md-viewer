@@ -1,39 +1,17 @@
 <template>
   <div class="settings-menu">
-    <!-- Connection Status Indicator -->
-    <v-tooltip location="bottom" :text="connectionTooltip">
+    <!-- Storage Status Indicator -->
+    <v-tooltip location="bottom" text="Local Storage - Click for Settings">
       <template #activator="{ props }">
         <v-btn
           icon
           variant="text"
           size="small"
-          class="settings-btn connection-btn"
-          :class="connectionStatusClass"
+          class="settings-btn storage-btn"
           v-bind="props"
           @click="openSettingsDialog"
         >
-          <!-- Google Drive Connected: Show user avatar -->
-          <template v-if="isGoogleConnected">
-            <v-avatar size="22">
-              <v-img v-if="googleDocs.userInfo.value?.picture" :src="googleDocs.userInfo.value.picture" />
-              <v-icon v-else size="18">mdi-account</v-icon>
-            </v-avatar>
-          </template>
-          <!-- Needs Reauthorization: Warning state -->
-          <template v-else-if="needsReauthorization">
-            <v-avatar size="22" color="warning">
-              <v-img v-if="googleDocs.userInfo.value?.picture" :src="googleDocs.userInfo.value.picture" />
-              <v-icon v-else size="18" color="white">mdi-account-alert</v-icon>
-            </v-avatar>
-          </template>
-          <!-- Local Storage Mode -->
-          <template v-else-if="isLocalMode">
-            <v-icon size="20">mdi-laptop</v-icon>
-          </template>
-          <!-- Disconnected (Google mode but not connected) -->
-          <template v-else>
-            <v-icon size="20">mdi-cloud-off-outline</v-icon>
-          </template>
+          <v-icon size="20">mdi-laptop</v-icon>
         </v-btn>
       </template>
     </v-tooltip>
@@ -193,6 +171,7 @@
                     <li><strong>Dark/Light Theme</strong>: Toggle between display themes</li>
                     <li><strong>Font Size Adjustment</strong>: Adjust font size from 10-24px</li>
                     <li><strong>AI Writing Assistant</strong>: Select text and right-click to improve or edit with AI (requires Gemini API key in Settings)</li>
+                    <li><strong>Git Sync</strong>: Sync your vaults with Git repositories</li>
                 </ul>
             </div>
 
@@ -211,7 +190,7 @@
                 </h3>
                 <v-alert type="info" variant="tonal" density="compact" class="info-alert">
                   <p class="mb-0 text-caption font-weight-medium">
-                    All data is stored in your <strong>browser's local storage</strong>. Clearing browser data will result in data loss.
+                    All data is stored in your <strong>browser's local storage</strong>. Clearing browser data will result in data loss. Use Git Sync for backup.
                   </p>
                 </v-alert>
             </div>
@@ -243,7 +222,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useTheme } from 'vuetify'
-import { useGoogleDocs } from '../composables/useGoogleDocs'
 import { usePdfExport } from '../composables/usePdfExport'
 import { useSettingsStore } from '../stores/settingsStore'
 import { useTabsStore } from '../stores/tabsStore'
@@ -251,42 +229,9 @@ import { useTabsStore } from '../stores/tabsStore'
 const theme = useTheme()
 const tabsStore = useTabsStore()
 const settingsStore = useSettingsStore()
-const googleDocs = useGoogleDocs()
 
 // PDF Export
 const { isExporting, exportPreviewToPdf } = usePdfExport()
-
-// Connection Status
-const isGoogleConnected = computed(() => 
-  settingsStore.settings.provider === 'google' && googleDocs.isConnected.value
-)
-
-const needsReauthorization = computed(() => 
-  settingsStore.settings.provider === 'google' && googleDocs.needsReauthorization.value
-)
-
-const isLocalMode = computed(() => 
-  settingsStore.settings.provider === 'local'
-)
-
-const connectionTooltip = computed(() => {
-  if (isGoogleConnected.value) {
-    return `Connected to Google Drive as ${googleDocs.userInfo.value?.name || googleDocs.userInfo.value?.email}`
-  } else if (needsReauthorization.value) {
-    return 'Google session expired - Click to reconnect'
-  } else if (isLocalMode.value) {
-    return 'Using Local Storage'
-  } else {
-    return 'Not connected to Google Drive - Click to set up'
-  }
-})
-
-const connectionStatusClass = computed(() => ({
-  'connected': isGoogleConnected.value,
-  'warning': needsReauthorization.value,
-  'local': isLocalMode.value,
-  'disconnected': !isGoogleConnected.value && !needsReauthorization.value && !isLocalMode.value
-}))
 
 // Theme state
 const isDark = computed(() => theme.global.name.value === 'dark')
@@ -378,42 +323,9 @@ if (savedTheme === 'dark' || savedTheme === 'light') {
   }
 }
 
-// Connection Status Button Styles
-.connection-btn {
-  position: relative;
-  
-  &.connected {
-    .v-avatar {
-      border: 2px solid #4caf50;
-      border-radius: 50%;
-    }
-  }
-  
-  &.warning {
-    .v-avatar {
-      border: 2px solid #ff9800;
-      border-radius: 50%;
-      animation: pulse-warning 2s infinite;
-    }
-  }
-  
-  &.local {
-    color: var(--text-secondary);
-  }
-  
-  &.disconnected {
-    color: var(--text-tertiary);
-    opacity: 0.7;
-  }
-}
-
-@keyframes pulse-warning {
-  0%, 100% {
-    box-shadow: 0 0 0 0 rgba(255, 152, 0, 0.4);
-  }
-  50% {
-    box-shadow: 0 0 0 4px rgba(255, 152, 0, 0);
-  }
+// Storage Status Button Styles
+.storage-btn {
+  color: var(--text-secondary);
 }
 
 .popup-card {
