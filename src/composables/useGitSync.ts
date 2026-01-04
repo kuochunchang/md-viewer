@@ -21,8 +21,8 @@ import type {
 // CORS proxy for GitHub (needed for browser requests)
 const CORS_PROXY = 'https://cors.isomorphic-git.org'
 
-// Cache for fs adapters
-const fsAdapterCache = new Map<string, FsAdapter>()
+// Cache for fs adapters - stores both adapter and handle for comparison
+const fsAdapterCache = new Map<string, { adapter: FsAdapter; handle: FileSystemDirectoryHandle }>()
 
 export function useGitSync() {
     const gitStore = useGitStore()
@@ -35,15 +35,24 @@ export function useGitSync() {
 
     /**
      * Get or create fs adapter for a vault
+     * If the handle has changed (e.g., after page reload), recreate the adapter
      */
     function getFsAdapter(
         vaultId: string,
         handle: FileSystemDirectoryHandle
     ): FsAdapter {
-        if (!fsAdapterCache.has(vaultId)) {
-            fsAdapterCache.set(vaultId, createFsAdapter(handle))
+        const cached = fsAdapterCache.get(vaultId)
+
+        // If cached and the handle is the same object, reuse the adapter
+        if (cached && cached.handle === handle) {
+            return cached.adapter
         }
-        return fsAdapterCache.get(vaultId)!
+
+        // Handle changed or not cached - create new adapter
+        const adapter = createFsAdapter(handle)
+        fsAdapterCache.set(vaultId, { adapter, handle })
+        console.log(`[GitSync] Created new fs adapter for vault ${vaultId} (handle changed: ${!!cached})`)
+        return adapter
     }
 
     /**
