@@ -52,6 +52,7 @@ interface FileInfo {
 }
 const tabToFileInfo = new Map<string, FileInfo>()
 const filePathToTab = new Map<string, string>()
+let watcherInitialized = false
 
 export function useFileSystem(): UseFileSystemReturn {
     const fileSystemStore = useFileSystemStore()
@@ -84,38 +85,111 @@ export function useFileSystem(): UseFileSystemReturn {
             const displayName = file.name.replace(/\.md$/, '').replace(/\.markdown$/, '')
             const tabId = tabsStore.addTabWithContent(displayName, content, null)
 
-            // Track the mapping (include vaultId for multi-vault support)
-            if (vaultId) {
-                tabToFileInfo.set(tabId, { vaultId, filePath: file.path })
-            } else {
-                // Try to find which vault this file belongs to
+            // Also store the filePath in the tab for persistence across reloads
+            const createdTab = tabsStore.tabs.find(t => t.id === tabId)
+            if (createdTab) {
+                createdTab.filePath = file.path
+            }
+
+            // Determine which vault this file belongs to
+            let resolvedVaultId = vaultId
+            if (!resolvedVaultId) {
                 for (const vault of vaults.value) {
                     const found = fileSystemStore.findFileInVault(vault.id, file.path)
                     if (found) {
-                        tabToFileInfo.set(tabId, { vaultId: vault.id, filePath: file.path })
+                        resolvedVaultId = vault.id
                         break
                     }
                 }
+            }
+
+            // Track the mapping (include vaultId for multi-vault support)
+            if (resolvedVaultId) {
+                tabToFileInfo.set(tabId, { vaultId: resolvedVaultId, filePath: file.path })
             }
             filePathToTab.set(file.path, tabId)
 
             // Set as current file for saving
             fileSystemStore.setCurrentFile(file.handle, file.path)
+
+            console.log('[FileSystem] Opened file and created mapping:', { tabId, filePath: file.path, vaultId: resolvedVaultId })
         } catch (err) {
             console.error('Failed to open file:', err)
         }
     }
 
+    // Rebuild tab-to-file mappings from existing tabs' filePath property
+    // This is called after vaults are reconnected to restore the mappings
+    function rebuildTabMappings(): void {
+        console.log('[FileSystem] Rebuilding tab mappings...', {
+            tabCount: tabsStore.tabs.length,
+            vaultCount: vaults.value.length
+        })
+
+        // Debug: show which tabs have filePath
+        const tabsWithFilePath = tabsStore.tabs.filter(t => t.filePath)
+        console.log('[FileSystem] Tabs with filePath:', tabsWithFilePath.map(t => ({ id: t.id, name: t.name, filePath: t.filePath })))
+
+        for (const tab of tabsStore.tabs) {
+            // Skip tabs that don't have a filePath (browser-mode tabs)
+            if (!tab.filePath) continue
+
+            // Skip if already mapped
+            if (tabToFileInfo.has(tab.id)) continue
+
+            // Find which vault this file belongs to
+            for (const vault of vaults.value) {
+                const file = fileSystemStore.findFileInVault(vault.id, tab.filePath)
+                if (file) {
+                    tabToFileInfo.set(tab.id, { vaultId: vault.id, filePath: tab.filePath })
+                    filePathToTab.set(tab.filePath, tab.id)
+                    console.log('[FileSystem] Restored mapping for tab:', { tabId: tab.id, filePath: tab.filePath, vaultId: vault.id })
+                    break
+                }
+            }
+        }
+
+        console.log('[FileSystem] Mapping rebuild complete. Total mappings:', tabToFileInfo.size)
+    }
+
+    // Watch for vault changes and rebuild mappings (only set up once)
+    if (!watcherInitialized) {
+        watcherInitialized = true
+        watch(
+            () => vaults.value.length,
+            (newLength, oldLength) => {
+                // When vaults are added (e.g., after reconnect), rebuild mappings
+                if (newLength > oldLength) {
+                    rebuildTabMappings()
+                }
+            }
+        )
+    }
+
     // Save the current active tab to its corresponding local file
     async function saveCurrentFile(): Promise<boolean> {
-        if (!isLocalMode.value) return false
+        console.log('[AutoSave] Attempting to save...', {
+            isLocalMode: isLocalMode.value,
+            activeTabId: tabsStore.activeTab?.id,
+            tabToFileInfoSize: tabToFileInfo.size
+        })
+
+        if (!isLocalMode.value) {
+            console.log('[AutoSave] Not in local mode, skipping save')
+            return false
+        }
 
         const activeTab = tabsStore.activeTab
-        if (!activeTab) return false
+        if (!activeTab) {
+            console.log('[AutoSave] No active tab, skipping save')
+            return false
+        }
 
         const fileInfo = tabToFileInfo.get(activeTab.id)
+        console.log('[AutoSave] File info for tab:', fileInfo)
         if (!fileInfo) {
             // This tab doesn't have a corresponding local file
+            console.log('[AutoSave] Tab has no file info mapping, skipping save')
             return false
         }
 

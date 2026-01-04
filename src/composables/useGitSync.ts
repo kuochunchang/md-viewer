@@ -679,32 +679,39 @@ Thumbs.db
             // 2. Commit local changes
             const sha = await commit(vaultId, handle, commitMessage)
 
-            // 3. Push if there are commits
-            if (sha) {
+            // 3. Check if we need to push (new commit OR existing unpushed commits)
+            const status = await getStatus(vaultId, handle)
+            const needsPush = sha || status.hasUnpushedCommits
+
+            if (needsPush) {
                 const pushResult = await push(vaultId, handle)
                 if (!pushResult.success) {
                     return {
                         success: false,
                         pulledFiles,
                         pushedFiles: 0,
-                        commitHash: sha,
+                        commitHash: sha || undefined,
                         hasConflicts: false,
                         conflictFiles: [],
                         error: pushResult.error,
                     }
                 }
 
+                // Update status after successful push
+                const newStatus = await getStatus(vaultId, handle)
+                gitStore.updateVaultStatus(vaultId, newStatus)
+
                 return {
                     success: true,
                     pulledFiles,
                     pushedFiles: pushResult.commitsPushed,
-                    commitHash: sha,
+                    commitHash: sha || undefined,
                     hasConflicts: false,
                     conflictFiles: [],
                 }
             }
 
-            // No local changes to push
+            // No changes to push
             return {
                 success: true,
                 pulledFiles,
