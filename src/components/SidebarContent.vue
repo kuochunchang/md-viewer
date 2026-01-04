@@ -176,6 +176,7 @@
 import { storeToRefs } from 'pinia'
 import { onMounted, ref, watch } from 'vue'
 import { useFileSystem } from '../composables/useFileSystem'
+import { useGitSync } from '../composables/useGitSync'
 import { useFileSystemStore } from '../stores/fileSystemStore'
 import { useGitStore } from '../stores/gitStore'
 import type { LocalFile } from '../types/fileSystem'
@@ -185,6 +186,7 @@ import LocalFileItem from './LocalFileItem.vue'
 
 const fileSystemStore = useFileSystemStore()
 const gitStore = useGitStore()
+const gitSync = useGitSync()
 const { isLoading, error, isSupported, vaults } = storeToRefs(fileSystemStore)
 const {
   addVault,
@@ -225,6 +227,19 @@ onMounted(async () => {
   
   // Try to reconnect to saved vaults
   await reconnectVaults()
+  
+  // Refresh Git status for each connected vault
+  // This ensures we show actual status instead of "Not initialized"
+  for (const vault of vaults.value) {
+    if (vault.handle) {
+      try {
+        const status = await gitSync.getStatus(vault.id, vault.handle)
+        gitStore.updateVaultStatus(vault.id, status)
+      } catch (error) {
+        console.warn(`Failed to refresh Git status for vault ${vault.name}:`, error)
+      }
+    }
+  }
   
   // Get list of saved vaults for reconnection UI
   savedVaultNames.value = await fileSystemStore.getSavedVaultNames()

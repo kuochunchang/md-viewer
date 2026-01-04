@@ -20,45 +20,6 @@
       <v-divider></v-divider>
 
       <v-card-text class="dialog-content pa-0">
-        <!-- Data Storage Section -->
-        <div class="settings-section">
-          <div class="section-header">
-            <v-icon size="small" color="primary" class="mr-2">mdi-database</v-icon>
-            <span class="section-title">Data Storage</span>
-          </div>
-          
-          <div class="section-content">
-            <!-- Local Storage Info -->
-            <v-alert 
-              type="info" 
-              variant="tonal" 
-              density="compact"
-              class="mb-3"
-            >
-              <p class="mb-0 text-caption">
-                Data is stored in your browser's <strong>localStorage</strong>.
-                Clearing browser data will result in data loss.
-              </p>
-            </v-alert>
-
-            <!-- Git Sync Hint -->
-            <v-alert 
-              type="success" 
-              variant="tonal" 
-              density="compact"
-            >
-              <div class="d-flex align-center gap-2">
-                <v-icon size="18">mdi-git</v-icon>
-                <span class="text-caption">
-                  For backup and sync, configure <strong>Git Sync</strong> in the sidebar.
-                </span>
-              </div>
-            </v-alert>
-          </div>
-        </div>
-
-        <v-divider></v-divider>
-
         <!-- AI Assistant Section -->
         <div class="settings-section">
           <div class="section-header">
