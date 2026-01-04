@@ -59,6 +59,7 @@
           <template #left>
             <MarkdownEditor
               ref="editorRef"
+              :key="tabsStore.activeTabId || 'editor'"
               :model-value="activeTabContent"
               :font-size="fontSize"
               :tab-id="tabsStore.activeTabId || ''"
@@ -69,6 +70,7 @@
           <template #right>
             <MarkdownPreview
               ref="previewRef"
+              :key="tabsStore.activeTabId || 'preview'"
               :content="activeTabContent"
               :font-size="fontSize"
               @scroll="handlePreviewScroll"
