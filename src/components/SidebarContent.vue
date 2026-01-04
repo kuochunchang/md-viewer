@@ -1,30 +1,7 @@
 <template>
   <div class="sidebar-content">
-    <!-- Mode Switcher -->
-    <div class="mode-switcher" v-if="isSupported">
-      <v-btn-toggle
-        v-model="currentMode"
-        mandatory
-        density="compact"
-        class="mode-toggle"
-      >
-        <v-btn value="browser" size="small" class="mode-btn">
-          <v-icon size="16" start>mdi-cloud-outline</v-icon>
-          Browser
-        </v-btn>
-        <v-btn value="local" size="small" class="mode-btn">
-          <v-icon size="16" start>mdi-folder-outline</v-icon>
-          Local
-        </v-btn>
-      </v-btn-toggle>
-    </div>
-
-    <!-- Browser Mode: Original FileList -->
-    <FileList v-if="currentMode === 'browser'" />
-
     <!-- Local Mode: Multi-Vault Display -->
-    <template v-else>
-      <div class="local-mode-content">
+    <div class="local-mode-content">
         <!-- Vault List Header -->
         <div class="vaults-header">
           <span class="header-title">VAULTS</span>
@@ -153,7 +130,20 @@
           </div>
         </div>
       </div>
-    </template>
+
+    <!-- Git Sync Panel -->
+    <GitSyncPanel
+      @open-settings="openGitSettings(null)"
+      @setup-vault="openGitSettings"
+      @sync-complete="handleSyncComplete"
+    />
+
+    <!-- Git Setup Dialog -->
+    <GitSetupDialog
+      v-model="showGitSettings"
+      :vault-id="selectedVaultForGit"
+      @saved="handleGitSettingsSaved"
+    />
 
     <!-- Error Snackbar -->
     <v-snackbar
@@ -169,6 +159,16 @@
         </v-btn>
       </template>
     </v-snackbar>
+
+    <!-- Success Snackbar -->
+    <v-snackbar
+      v-model="showSuccess"
+      :timeout="3000"
+      color="success"
+      location="bottom"
+    >
+      {{ successMessage }}
+    </v-snackbar>
   </div>
 </template>
 
@@ -177,11 +177,14 @@ import { storeToRefs } from 'pinia'
 import { onMounted, ref, watch } from 'vue'
 import { useFileSystem } from '../composables/useFileSystem'
 import { useFileSystemStore } from '../stores/fileSystemStore'
+import { useGitStore } from '../stores/gitStore'
 import type { LocalFile } from '../types/fileSystem'
-import FileList from './FileList.vue'
+import GitSetupDialog from './GitSetupDialog.vue'
+import GitSyncPanel from './GitSyncPanel.vue'
 import LocalFileItem from './LocalFileItem.vue'
 
 const fileSystemStore = useFileSystemStore()
+const gitStore = useGitStore()
 const { isLoading, error, isSupported, vaults } = storeToRefs(fileSystemStore)
 const {
   addVault,
@@ -196,10 +199,15 @@ const {
 } = useFileSystem()
 
 // UI State
-const currentMode = ref<'browser' | 'local'>('browser')
 const showError = ref(false)
 const errorMessage = ref('')
 const savedVaultNames = ref<Array<{ id: string; name: string }>>([])
+
+// Git UI State
+const showGitSettings = ref(false)
+const selectedVaultForGit = ref<string | null>(null)
+const showSuccess = ref(false)
+const successMessage = ref('')
 
 // Watch for errors
 watch(error, (newError) => {
@@ -209,24 +217,14 @@ watch(error, (newError) => {
   }
 })
 
-// Sync mode with store
-watch(
-  () => fileSystemStore.isLocalMode,
-  (isLocal) => {
-    if (isLocal && currentMode.value !== 'local') {
-      currentMode.value = 'local'
-    }
-  }
-)
 
 // Check for saved vaults and try to reconnect on mount
 onMounted(async () => {
-  // Try to reconnect to saved vaults
-  const connectedCount = await reconnectVaults()
+  // Initialize Git store
+  gitStore.initialize()
   
-  if (connectedCount > 0) {
-    currentMode.value = 'local'
-  }
+  // Try to reconnect to saved vaults
+  await reconnectVaults()
   
   // Get list of saved vaults for reconnection UI
   savedVaultNames.value = await fileSystemStore.getSavedVaultNames()
@@ -239,7 +237,6 @@ onMounted(async () => {
 async function handleAddVault() {
   const vault = await addVault()
   if (vault) {
-    currentMode.value = 'local'
     // Remove from saved list if it was there
     savedVaultNames.value = savedVaultNames.value.filter(v => v.id !== vault.id)
   }
@@ -247,17 +244,11 @@ async function handleAddVault() {
 
 async function handleRemoveVault(vaultId: string) {
   await removeVault(vaultId)
-  
-  // If no vaults left, switch back to browser mode
-  if (vaults.value.length === 0) {
-    currentMode.value = 'browser'
-  }
 }
 
 async function handleReconnectVault(vaultId: string) {
   const success = await fileSystemStore.requestVaultPermission(vaultId)
   if (success) {
-    currentMode.value = 'local'
     // Remove from saved list
     savedVaultNames.value = savedVaultNames.value.filter(v => v.id !== vaultId)
   }
@@ -287,6 +278,28 @@ function clearError() {
   showError.value = false
   clearStoreError()
 }
+
+// Git-related functions
+function openGitSettings(vaultId: string | null) {
+  selectedVaultForGit.value = vaultId
+  showGitSettings.value = true
+}
+
+function handleGitSettingsSaved() {
+  successMessage.value = 'Git settings saved successfully'
+  showSuccess.value = true
+}
+
+function handleSyncComplete(vaultId: string, success: boolean) {
+  if (success) {
+    successMessage.value = 'Sync completed successfully'
+    showSuccess.value = true
+  } else {
+    const vaultConfig = gitStore.vaultConfigs[vaultId]
+    errorMessage.value = vaultConfig?.status.errorMessage || 'Sync failed'
+    showError.value = true
+  }
+}
 </script>
 
 <style scoped lang="scss">
@@ -295,40 +308,6 @@ function clearError() {
   flex-direction: column;
   height: 100%;
   background-color: var(--bg-sidebar);
-}
-
-.mode-switcher {
-  padding: 8px;
-  border-bottom: 1px solid var(--border-color);
-}
-
-.mode-toggle {
-  width: 100%;
-  display: flex;
-  
-  :deep(.v-btn) {
-    flex: 1;
-    border-radius: 6px !important;
-    text-transform: none;
-    font-weight: 500;
-    font-size: 12px;
-    letter-spacing: 0;
-  }
-  
-  :deep(.v-btn-group) {
-    width: 100%;
-  }
-}
-
-.mode-btn {
-  &.v-btn--active {
-    background: linear-gradient(
-      135deg,
-      rgba(var(--v-theme-primary), 0.15) 0%,
-      rgba(var(--v-theme-primary), 0.08) 100%
-    ) !important;
-    color: rgb(var(--v-theme-primary)) !important;
-  }
 }
 
 .local-mode-content {

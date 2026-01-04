@@ -1,3 +1,7 @@
+// Polyfill Buffer for browser (required by isomorphic-git)
+import { Buffer } from 'buffer'
+globalThis.Buffer = Buffer
+
 import '@mdi/font/css/materialdesignicons.css'
 import { createPinia } from 'pinia'
 import { createApp } from 'vue'

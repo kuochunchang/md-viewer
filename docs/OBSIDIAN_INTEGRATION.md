@@ -117,6 +117,15 @@ export const useFileSystem = () => {
 - [x] 增加「建立新檔案」功能：在 Web 端新建檔案，直接在硬碟產生 `.md` 檔。
 - [ ] 增加「Obsidian URI 跳轉」：在 Tab 標題右鍵選單增加 "Open in Obsidian App"，方便跳轉回桌面軟體。
 
+### Phase 5: Git 同步整合 (Git Sync Integration)
+- [ ] 整合 `isomorphic-git` 實現瀏覽器端 Git 操作
+- [ ] 實作 Git 初始化與遠端設定功能
+- [ ] 實作 Pull / Push / Sync 操作
+- [ ] 實作自動同步功能
+- [ ] 實作衝突偵測與解決介面
+
+> 📄 詳細計畫請參考：[GIT_SYNC_PLAN.md](./GIT_SYNC_PLAN.md)
+
 ---
 
 ## 5. 替代方案：Obsidian URI (輕量級)

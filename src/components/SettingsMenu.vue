@@ -321,10 +321,17 @@ async function handlePdfExport() {
   }
 }
 
-// Toggle Theme
+// Toggle Theme - Using Vuetify 3 theme API
 function toggleTheme() {
-  theme.global.name.value = isDark.value ? 'light' : 'dark'
-  localStorage.setItem('theme', theme.global.name.value)
+  const newTheme = isDark.value ? 'light' : 'dark'
+  // Check if Vuetify 3.4+ change method is available
+  if (typeof (theme as unknown as { change?: (name: string) => void }).change === 'function') {
+    (theme as unknown as { change: (name: string) => void }).change(newTheme)
+  } else {
+    // Fallback for older Vuetify versions
+    theme.global.name.value = newTheme
+  }
+  localStorage.setItem('theme', newTheme)
 }
 
 // Handle font size change
@@ -343,7 +350,13 @@ function setFontSize(size: number) {
 // Initialization: Load theme preference from localStorage
 const savedTheme = localStorage.getItem('theme')
 if (savedTheme === 'dark' || savedTheme === 'light') {
-  theme.global.name.value = savedTheme
+  // Check if Vuetify 3.4+ change method is available
+  if (typeof (theme as unknown as { change?: (name: string) => void }).change === 'function') {
+    (theme as unknown as { change: (name: string) => void }).change(savedTheme)
+  } else {
+    // Fallback for older Vuetify versions
+    theme.global.name.value = savedTheme
+  }
 }
 </script>
 
