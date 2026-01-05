@@ -9,6 +9,11 @@ export interface PdfExportOptions {
     singlePage?: boolean
 }
 
+// Maximum canvas height to avoid browser limitations
+// Chrome/Firefox typically support up to 16384px, but using a safer limit
+const MAX_CANVAS_HEIGHT = 8000
+const CHUNK_OVERLAP = 50 // Small overlap to prevent gaps between chunks
+
 export function usePdfExport() {
     const isExporting = ref(false)
     const exportError = ref<string | null>(null)
@@ -60,7 +65,54 @@ export function usePdfExport() {
     }
 
     /**
-     * Generate PDF from HTML element
+     * Validate that canvas data URL is not empty
+     * Returns true if valid, false if empty (which indicates canvas exceeded browser limits)
+     */
+    function isValidDataUrl(dataUrl: string): boolean {
+        // Empty or minimal data URL indicates failure
+        return Boolean(dataUrl && dataUrl.length > 100 && !dataUrl.endsWith('data:,'))
+    }
+
+    /**
+     * Render a chunk of content to canvas
+     * @param element - The element to render
+     * @param yOffset - The vertical offset to start rendering from
+     * @param chunkHeight - The height of the chunk to render
+     * @param scale - The scale factor for rendering
+     */
+    async function renderChunk(
+        element: HTMLElement,
+        yOffset: number,
+        chunkHeight: number,
+        scale: number
+    ): Promise<HTMLCanvasElement> {
+        const canvas = await html2canvas(element, {
+            scale,
+            useCORS: true,
+            logging: false,
+            backgroundColor: '#ffffff',
+            allowTaint: true,
+            scrollX: 0,
+            scrollY: -yOffset, // Scroll to the correct position
+            windowWidth: 1200,
+            height: chunkHeight,
+            y: yOffset,
+            onclone: (_clonedDoc, clonedElement) => {
+                applyPrintStyles(clonedElement)
+            }
+        })
+
+        // Validate the canvas
+        const testDataUrl = canvas.toDataURL('image/jpeg', 0.1)
+        if (!isValidDataUrl(testDataUrl)) {
+            throw new Error(`Canvas chunk rendering failed at y=${yOffset}. Content may be too large.`)
+        }
+
+        return canvas
+    }
+
+    /**
+     * Generate PDF from HTML element with chunked rendering for large content
      * @param element - The HTML element to convert to PDF
      * @param options - PDF export options
      */
@@ -78,99 +130,215 @@ export function usePdfExport() {
         exportError.value = null
 
         try {
-            // Use html2canvas with onclone callback to modify styles
-            const canvas = await html2canvas(element, {
-                scale: 2,
-                useCORS: true,
-                logging: false,
-                backgroundColor: '#ffffff',
-                allowTaint: true,
-                scrollX: 0,
-                scrollY: 0,
-                windowWidth: 1200,
-                onclone: (_clonedDoc, clonedElement) => {
-                    applyPrintStyles(clonedElement)
-                }
-            })
+            // Get the actual content dimensions
+            const elementHeight = element.scrollHeight
+            const elementWidth = element.scrollWidth || 800
+            const scale = 2
 
-            // Get canvas dimensions
-            const imgWidth = canvas.width
-            const imgHeight = canvas.height
+            // Calculate scaled dimensions
+            const scaledHeight = elementHeight * scale
+            const scaledWidth = elementWidth * scale
+
+            // Check if we need chunked rendering
+            const needsChunkedRendering = scaledHeight > MAX_CANVAS_HEIGHT * scale
+
+            console.log(`PDF Export: Element size ${elementWidth}x${elementHeight}, scaled: ${scaledWidth}x${scaledHeight}`)
+            console.log(`PDF Export: Chunked rendering: ${needsChunkedRendering}`)
 
             // Wide page format (280mm width, wider than A4)
             const PAGE_WIDTH_MM = 280
             const contentWidthMm = PAGE_WIDTH_MM - margin * 2
 
-            // Calculate PDF dimensions
-            const pxToMm = contentWidthMm / imgWidth
-            const contentHeightMm = imgHeight * pxToMm
-            const pageHeightMm = contentHeightMm + margin * 2
-
-            // Create PDF
-            const pdf = new jsPDF({
-                orientation: 'portrait',
-                unit: 'mm',
-                format: singlePage ? [PAGE_WIDTH_MM, pageHeightMm] : 'a4'
-            })
-
-            // Convert canvas to image data
-            const imgData = canvas.toDataURL('image/jpeg', 0.95)
-
-            if (singlePage) {
-                // Single page mode: add entire image to one page
-                pdf.addImage(imgData, 'JPEG', margin, margin, contentWidthMm, contentHeightMm)
-            } else {
-                // Multi-page mode: split across A4 pages
-                const A4_HEIGHT_MM = 297
-                const pageContentHeight = A4_HEIGHT_MM - margin * 2
-                let remainingHeight = contentHeightMm
-                let yOffset = 0
-                let pageNum = 0
-
-                while (remainingHeight > 0) {
-                    if (pageNum > 0) {
-                        pdf.addPage()
+            if (!needsChunkedRendering) {
+                // Standard rendering for smaller content
+                const canvas = await html2canvas(element, {
+                    scale,
+                    useCORS: true,
+                    logging: false,
+                    backgroundColor: '#ffffff',
+                    allowTaint: true,
+                    scrollX: 0,
+                    scrollY: 0,
+                    windowWidth: 1200,
+                    onclone: (_clonedDoc, clonedElement) => {
+                        applyPrintStyles(clonedElement)
                     }
+                })
 
-                    // Calculate source region from canvas
-                    const sourceY = (yOffset / contentHeightMm) * imgHeight
-                    const sourceHeight = Math.min(
-                        (pageContentHeight / contentHeightMm) * imgHeight,
-                        imgHeight - sourceY
-                    )
-                    const destHeight = Math.min(pageContentHeight, remainingHeight)
-
-                    // Create a temporary canvas for this page section
-                    const pageCanvas = document.createElement('canvas')
-                    pageCanvas.width = imgWidth
-                    pageCanvas.height = sourceHeight
-                    const ctx = pageCanvas.getContext('2d')!
-                    ctx.fillStyle = '#ffffff'
-                    ctx.fillRect(0, 0, pageCanvas.width, pageCanvas.height)
-                    ctx.drawImage(
-                        canvas,
-                        0, sourceY, imgWidth, sourceHeight,
-                        0, 0, imgWidth, sourceHeight
-                    )
-
-                    const pageImgData = pageCanvas.toDataURL('image/jpeg', 0.95)
-                    pdf.addImage(pageImgData, 'JPEG', margin, margin, contentWidthMm, destHeight)
-
-                    yOffset += pageContentHeight
-                    remainingHeight -= pageContentHeight
-                    pageNum++
+                // Validate canvas
+                const imgData = canvas.toDataURL('image/jpeg', 0.95)
+                if (!isValidDataUrl(imgData)) {
+                    throw new Error('Canvas rendering failed. The content may be too large for your browser.')
                 }
-            }
 
-            // Save the PDF
-            pdf.save(filename)
+                const imgWidth = canvas.width
+                const imgHeight = canvas.height
+                const pxToMm = contentWidthMm / imgWidth
+                const contentHeightMm = imgHeight * pxToMm
+                const pageHeightMm = contentHeightMm + margin * 2
+
+                const pdf = new jsPDF({
+                    orientation: 'portrait',
+                    unit: 'mm',
+                    format: singlePage ? [PAGE_WIDTH_MM, pageHeightMm] : 'a4'
+                })
+
+                if (singlePage) {
+                    pdf.addImage(imgData, 'JPEG', margin, margin, contentWidthMm, contentHeightMm)
+                } else {
+                    await renderMultiPagePdf(pdf, canvas, imgWidth, imgHeight, contentWidthMm, margin)
+                }
+
+                pdf.save(filename)
+            } else {
+                // Chunked rendering for large content
+                console.log('PDF Export: Using chunked rendering for large content')
+
+                const chunkHeight = Math.floor(MAX_CANVAS_HEIGHT / scale)
+                const numChunks = Math.ceil(elementHeight / chunkHeight)
+                const canvasChunks: HTMLCanvasElement[] = []
+
+                console.log(`PDF Export: Rendering ${numChunks} chunks of ${chunkHeight}px each`)
+
+                // Render each chunk
+                for (let i = 0; i < numChunks; i++) {
+                    const yOffset = i * (chunkHeight - CHUNK_OVERLAP)
+                    const actualChunkHeight = Math.min(chunkHeight, elementHeight - yOffset)
+
+                    console.log(`PDF Export: Rendering chunk ${i + 1}/${numChunks} at y=${yOffset}`)
+
+                    const chunkCanvas = await renderChunk(element, yOffset, actualChunkHeight, scale)
+                    canvasChunks.push(chunkCanvas)
+                }
+
+                // Calculate total dimensions
+                const firstChunk = canvasChunks[0]
+                const totalWidth = firstChunk.width
+                const totalScaledHeight = canvasChunks.reduce((sum, c) => sum + c.height, 0)
+                    - (canvasChunks.length - 1) * CHUNK_OVERLAP * scale // Subtract overlaps
+
+                const pxToMm = contentWidthMm / totalWidth
+                const totalHeightMm = totalScaledHeight * pxToMm
+                const pageHeightMm = totalHeightMm + margin * 2
+
+                // Create PDF
+                const pdf = new jsPDF({
+                    orientation: 'portrait',
+                    unit: 'mm',
+                    format: singlePage ? [PAGE_WIDTH_MM, pageHeightMm] : 'a4'
+                })
+
+                if (singlePage) {
+                    // Add all chunks to a single page
+                    let yPosition = margin
+                    for (let i = 0; i < canvasChunks.length; i++) {
+                        const chunk = canvasChunks[i]
+                        const imgData = chunk.toDataURL('image/jpeg', 0.95)
+
+                        if (!isValidDataUrl(imgData)) {
+                            throw new Error(`Chunk ${i + 1} rendering failed.`)
+                        }
+
+                        const chunkHeightMm = chunk.height * pxToMm
+
+                        // Skip overlap for all chunks except the first
+                        const overlapMm = i > 0 ? CHUNK_OVERLAP * scale * pxToMm : 0
+
+                        pdf.addImage(imgData, 'JPEG', margin, yPosition - overlapMm, contentWidthMm, chunkHeightMm)
+                        yPosition += chunkHeightMm - overlapMm
+                    }
+                } else {
+                    // Multi-page mode with chunks
+                    const A4_HEIGHT_MM = 297
+                    let yPositionOnPage = margin
+
+                    for (let i = 0; i < canvasChunks.length; i++) {
+                        const chunk = canvasChunks[i]
+                        const imgData = chunk.toDataURL('image/jpeg', 0.95)
+
+                        if (!isValidDataUrl(imgData)) {
+                            throw new Error(`Chunk ${i + 1} rendering failed.`)
+                        }
+
+                        const chunkHeightMm = chunk.height * pxToMm
+
+                        // Check if we need a new page
+                        if (yPositionOnPage + chunkHeightMm > A4_HEIGHT_MM - margin) {
+                            pdf.addPage()
+                            yPositionOnPage = margin
+                        }
+
+                        pdf.addImage(imgData, 'JPEG', margin, yPositionOnPage, contentWidthMm, chunkHeightMm)
+                        yPositionOnPage += chunkHeightMm
+                    }
+                }
+
+                pdf.save(filename)
+                console.log(`PDF Export: Successfully generated ${filename}`)
+            }
 
         } catch (error) {
             console.error('PDF export failed:', error)
-            exportError.value = error instanceof Error ? error.message : 'PDF export failed'
+            const errorMessage = error instanceof Error ? error.message : 'PDF export failed'
+            exportError.value = errorMessage
             throw error
         } finally {
             isExporting.value = false
+        }
+    }
+
+    /**
+     * Helper function to render multi-page PDF from a single canvas
+     */
+    async function renderMultiPagePdf(
+        pdf: jsPDF,
+        canvas: HTMLCanvasElement,
+        imgWidth: number,
+        imgHeight: number,
+        contentWidthMm: number,
+        margin: number
+    ): Promise<void> {
+        const A4_HEIGHT_MM = 297
+        const pxToMm = contentWidthMm / imgWidth
+        const contentHeightMm = imgHeight * pxToMm
+        const pageContentHeight = A4_HEIGHT_MM - margin * 2
+        let remainingHeight = contentHeightMm
+        let yOffset = 0
+        let pageNum = 0
+
+        while (remainingHeight > 0) {
+            if (pageNum > 0) {
+                pdf.addPage()
+            }
+
+            const sourceY = (yOffset / contentHeightMm) * imgHeight
+            const sourceHeight = Math.min(
+                (pageContentHeight / contentHeightMm) * imgHeight,
+                imgHeight - sourceY
+            )
+            const destHeight = Math.min(pageContentHeight, remainingHeight)
+
+            const pageCanvas = document.createElement('canvas')
+            pageCanvas.width = imgWidth
+            pageCanvas.height = Math.ceil(sourceHeight)
+            const ctx = pageCanvas.getContext('2d')!
+            ctx.fillStyle = '#ffffff'
+            ctx.fillRect(0, 0, pageCanvas.width, pageCanvas.height)
+            ctx.drawImage(
+                canvas,
+                0, sourceY, imgWidth, sourceHeight,
+                0, 0, imgWidth, sourceHeight
+            )
+
+            const pageImgData = pageCanvas.toDataURL('image/jpeg', 0.95)
+            if (!isValidDataUrl(pageImgData)) {
+                throw new Error(`Page ${pageNum + 1} rendering failed.`)
+            }
+            pdf.addImage(pageImgData, 'JPEG', margin, margin, contentWidthMm, destHeight)
+
+            yOffset += pageContentHeight
+            remainingHeight -= pageContentHeight
+            pageNum++
         }
     }
 
