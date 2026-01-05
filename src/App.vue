@@ -115,7 +115,7 @@ const showSidebar = computed({
 })
 
 // Sidebar Resizing
-const sidebarWidth = ref(280)
+const sidebarWidth = ref(364)
 const isResizing = ref(false)
 
 function startResize() {
@@ -129,8 +129,8 @@ function startResize() {
 
 function handleResize(e: MouseEvent) {
   if (!isResizing.value) return
-  // Min width 200, Max width 600
-  const newWidth = Math.max(200, Math.min(600, e.clientX))
+  // Min width 260, Max width 780
+  const newWidth = Math.max(260, Math.min(780, e.clientX))
   sidebarWidth.value = newWidth
 }
 
