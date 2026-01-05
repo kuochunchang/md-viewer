@@ -147,6 +147,9 @@ export function createFsAdapter(rootHandle: FileSystemDirectoryHandle) {
 
         /**
          * Write file contents
+         * 
+         * Handles read-only files (like Git pack files) by deleting them first
+         * before creating a new writable file.
          */
         async writeFile(
             filepath: string,
@@ -167,8 +170,34 @@ export function createFsAdapter(rootHandle: FileSystemDirectoryHandle) {
                     dirHandle = await dirHandle.getDirectoryHandle(part, { create: true })
                 }
 
-                const fileHandle = await dirHandle.getFileHandle(filename, { create: true })
-                const writable = await fileHandle.createWritable()
+                // Try to get or create the file handle
+                let fileHandle: FileSystemFileHandle
+                let writable: FileSystemWritableFileStream
+
+                try {
+                    fileHandle = await dirHandle.getFileHandle(filename, { create: true })
+                    writable = await fileHandle.createWritable()
+                } catch (createError) {
+                    // If createWritable fails (e.g., file is read-only like Git pack files),
+                    // try to delete the file first and create a new one
+                    const err = createError as Error
+                    if (err.message.includes('read-only') ||
+                        err.message.includes('createWritable') ||
+                        err.message.includes('NotAllowedError')) {
+                        try {
+                            // Delete the existing read-only file
+                            await dirHandle.removeEntry(filename)
+                            // Create a new file
+                            fileHandle = await dirHandle.getFileHandle(filename, { create: true })
+                            writable = await fileHandle.createWritable()
+                        } catch (retryError) {
+                            // If retry also fails, throw the original error
+                            throw createError
+                        }
+                    } else {
+                        throw createError
+                    }
+                }
 
                 // Handle both string and Uint8Array data
                 if (typeof data === 'string') {
