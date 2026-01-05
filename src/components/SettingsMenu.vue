@@ -1,21 +1,5 @@
 <template>
   <div class="settings-menu">
-    <!-- Storage Status Indicator -->
-    <v-tooltip location="bottom" text="Local Storage - Click for Settings">
-      <template #activator="{ props }">
-        <v-btn
-          icon
-          variant="text"
-          size="small"
-          class="settings-btn storage-btn"
-          v-bind="props"
-          @click="openSettingsDialog"
-        >
-          <v-icon size="20">mdi-laptop</v-icon>
-        </v-btn>
-      </template>
-    </v-tooltip>
-
     <!-- PDF Export Button -->
     <v-tooltip location="bottom" text="Download as PDF">
       <template #activator="{ props }">
@@ -321,11 +305,6 @@ if (savedTheme === 'dark' || savedTheme === 'light') {
     color: var(--text-primary);
     background-color: var(--bg-surface-hover);
   }
-}
-
-// Storage Status Button Styles
-.storage-btn {
-  color: var(--text-secondary);
 }
 
 .popup-card {
