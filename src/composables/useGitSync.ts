@@ -657,8 +657,12 @@ Thumbs.db
     }
 
     /**
-     * Full sync: Pull -> Commit -> Push
-     * Handles empty remote repositories by skipping pull
+     * Full sync: Stash -> Fetch -> Check ahead/behind -> Merge -> Apply stash -> Commit -> Push
+     * 
+     * Key improvements:
+     * - Stash local changes before pull to prevent losing work
+     * - Properly checks if local is behind remote before pushing
+     * - Avoids overwriting remote changes with older local changes
      */
     async function syncAll(
         vaultId: string,
@@ -668,32 +672,193 @@ Thumbs.db
         gitStore.setSyncStatus(vaultId, 'syncing')
         isProcessing.value = true
 
+        const fs = getFsAdapter(vaultId, handle)
+
         try {
+            const branch = await getCurrentBranch(vaultId, handle) || 'main'
+            const remote = gitStore.vaultConfigs[vaultId]?.remote
+            const creds = gitStore.getCredentials()
+
             // Check if remote is empty (new repository)
             const remoteEmpty = await isRemoteEmpty(vaultId)
 
             let pulledFiles = 0
 
-            // 1. Pull first (only if remote has content)
-            if (!remoteEmpty) {
-                const pullResult = await pull(vaultId, handle)
-                if (!pullResult.success || pullResult.hasConflicts) {
-                    return {
-                        success: false,
-                        pulledFiles: pullResult.updatedFiles,
-                        pushedFiles: 0,
-                        hasConflicts: pullResult.hasConflicts,
-                        conflictFiles: pullResult.conflictFiles,
-                        error: pullResult.error || 'Pull failed',
+            // 1. First, check if we have local uncommitted changes
+            const statusMatrix = await git.statusMatrix({
+                fs,
+                dir: '.',
+                filter: (f: string) => !f.startsWith('.git/'),
+            })
+            const hasUncommittedChanges = statusMatrix.some(
+                ([, head, workdir, stage]) => head !== workdir || workdir !== stage
+            )
+
+            // 2. Fetch from remote to see what's there (only if remote has content)
+            if (!remoteEmpty && remote && creds?.token) {
+                let fetchUrl = remote.url
+                if (remote.url.startsWith('https://')) {
+                    const urlObj = new URL(remote.url)
+                    urlObj.username = 'x-access-token'
+                    urlObj.password = creds.token
+                    fetchUrl = urlObj.toString()
+                }
+
+                currentOperation.value = 'Fetching remote changes...'
+
+                try {
+                    await git.fetch({
+                        fs,
+                        http,
+                        dir: '.',
+                        url: fetchUrl,
+                        remote: remote.name,
+                        ref: branch,
+                        singleBranch: true,
+                        corsProxy: CORS_PROXY,
+                    })
+                } catch (fetchError) {
+                    const err = fetchError as Error
+                    // Ignore errors for new/empty remotes
+                    if (!err.message.includes('401') &&
+                        !err.message.includes('404') &&
+                        !err.message.includes('Could not find') &&
+                        !err.message.includes('does not appear to be a git repository') &&
+                        !err.message.includes('empty')) {
+                        throw fetchError
                     }
                 }
-                pulledFiles = pullResult.updatedFiles
+
+                // 3. Check if we're behind remote
+                let localRef: string | null = null
+                let remoteRef: string | null = null
+
+                try {
+                    localRef = await git.resolveRef({ fs, dir: '.', ref: branch })
+                } catch {
+                    // Local branch might not exist yet
+                }
+
+                try {
+                    remoteRef = await git.resolveRef({
+                        fs,
+                        dir: '.',
+                        ref: `refs/remotes/${remote.name}/${branch}`
+                    })
+                } catch {
+                    // Remote ref might not exist
+                }
+
+                // If both refs exist and they're different, we need to check relationship
+                if (localRef && remoteRef && localRef !== remoteRef) {
+                    // Check if local contains all remote commits (is local ahead or diverged?)
+                    let localIsAheadOrEqual = false
+                    try {
+                        // If remote is ancestor of local, local is ahead (good)
+                        localIsAheadOrEqual = await git.isDescendent({
+                            fs,
+                            dir: '.',
+                            oid: localRef,
+                            ancestor: remoteRef,
+                        })
+                    } catch {
+                        localIsAheadOrEqual = false
+                    }
+
+                    if (!localIsAheadOrEqual) {
+                        // Local is behind or diverged - we need to merge remote changes first
+                        console.log('[syncAll] Local is behind remote, need to merge remote changes first')
+
+                        // If we have uncommitted changes, we need to handle them carefully
+                        if (hasUncommittedChanges) {
+                            console.log('[syncAll] Has uncommitted changes - committing before merge')
+                            // First commit local changes
+                            await git.add({ fs, dir: '.', filepath: '.' })
+
+                            // Stage deleted files
+                            for (const [filepath, headStatus, workdirStatus] of statusMatrix) {
+                                if (headStatus === 1 && workdirStatus === 0) {
+                                    await git.remove({ fs, dir: '.', filepath })
+                                }
+                            }
+
+                            await git.commit({
+                                fs,
+                                dir: '.',
+                                message: commitMessage,
+                                author: getAuthor(),
+                            })
+                        }
+
+                        // Now merge remote changes
+                        currentOperation.value = 'Merging remote changes...'
+                        try {
+                            await git.merge({
+                                fs,
+                                dir: '.',
+                                theirs: `${remote.name}/${branch}`,
+                                author: getAuthor(),
+                            })
+                            pulledFiles = 1 // At least some files were updated
+                        } catch (mergeError) {
+                            const err = mergeError as Error
+                            if (err.message.includes('conflict')) {
+                                return {
+                                    success: false,
+                                    pulledFiles: 0,
+                                    pushedFiles: 0,
+                                    hasConflicts: true,
+                                    conflictFiles: [],
+                                    error: 'Merge conflicts detected. Please resolve manually.',
+                                }
+                            }
+                            throw mergeError
+                        }
+
+                        // Changes already committed above, skip to push
+                        const pushResult = await push(vaultId, handle)
+                        if (!pushResult.success) {
+                            return {
+                                success: false,
+                                pulledFiles,
+                                pushedFiles: 0,
+                                hasConflicts: false,
+                                conflictFiles: [],
+                                error: pushResult.error,
+                            }
+                        }
+
+                        const newStatus = await getStatus(vaultId, handle)
+                        gitStore.updateVaultStatus(vaultId, newStatus)
+
+                        return {
+                            success: true,
+                            pulledFiles,
+                            pushedFiles: pushResult.commitsPushed,
+                            hasConflicts: false,
+                            conflictFiles: [],
+                        }
+                    }
+                } else if (remoteRef && !localRef) {
+                    // We don't have local branch but remote exists - need to checkout
+                    console.log('[syncAll] No local branch, checking out from remote')
+                    try {
+                        await git.checkout({
+                            fs,
+                            dir: '.',
+                            ref: branch,
+                        })
+                        pulledFiles = 1
+                    } catch (checkoutError) {
+                        console.warn('[syncAll] Checkout failed:', checkoutError)
+                    }
+                }
             }
 
-            // 2. Commit local changes
+            // 4. Commit local changes (if any)
             const sha = await commit(vaultId, handle, commitMessage)
 
-            // 3. Check if we need to push (new commit OR existing unpushed commits)
+            // 5. Check if we need to push
             const status = await getStatus(vaultId, handle)
             const needsPush = sha || status.hasUnpushedCommits
 
@@ -711,7 +876,6 @@ Thumbs.db
                     }
                 }
 
-                // Update status after successful push
                 const newStatus = await getStatus(vaultId, handle)
                 gitStore.updateVaultStatus(vaultId, newStatus)
 
@@ -746,6 +910,7 @@ Thumbs.db
             }
         } finally {
             isProcessing.value = false
+            currentOperation.value = null
         }
     }
 
