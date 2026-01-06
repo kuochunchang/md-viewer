@@ -192,6 +192,8 @@ export function useGitSync() {
         const obsGit = await hasObsidianGit(vaultId, handle)
 
         // Check for unpushed commits
+        // We need to check if local is AHEAD of remote, not just different
+        // Only consider hasUnpushed=true if local contains commits that remote doesn't have
         let hasUnpushed = false
         if (remotes.length > 0 && branch) {
             try {
@@ -201,10 +203,37 @@ export function useGitSync() {
                     dir: '.',
                     ref: `refs/remotes/origin/${branch}`
                 })
-                hasUnpushed = localRef !== remoteRef
+
+                if (localRef !== remoteRef) {
+                    // Refs are different - check if local is ahead of remote
+                    // If remote is an ancestor of local, then local has unpushed commits
+                    try {
+                        const remoteIsAncestorOfLocal = await git.isDescendent({
+                            fs,
+                            dir: '.',
+                            oid: localRef,
+                            ancestor: remoteRef,
+                        })
+                        // Only set hasUnpushed if local is truly ahead (remote is ancestor)
+                        hasUnpushed = remoteIsAncestorOfLocal
+                    } catch {
+                        // If ancestor check fails, don't assume unpushed
+                        // This avoids false positives that cause unnecessary pushes
+                        hasUnpushed = false
+                    }
+                }
+                // If localRef === remoteRef, hasUnpushed stays false (no unpushed commits)
             } catch {
-                // Remote ref might not exist yet
-                hasUnpushed = true
+                // Remote ref might not exist yet - this means we have local commits not on remote
+                // But only if we actually have local commits
+                try {
+                    await git.resolveRef({ fs, dir: '.', ref: branch })
+                    // Local branch exists but remote doesn't - we have unpushed commits
+                    hasUnpushed = true
+                } catch {
+                    // No local commits either
+                    hasUnpushed = false
+                }
             }
         }
 
