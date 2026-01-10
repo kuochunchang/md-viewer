@@ -686,12 +686,19 @@ Thumbs.db
     }
 
     /**
-     * Full sync: Stash -> Fetch -> Check ahead/behind -> Merge -> Apply stash -> Commit -> Push
-     * 
-     * Key improvements:
-     * - Stash local changes before pull to prevent losing work
-     * - Properly checks if local is behind remote before pushing
-     * - Avoids overwriting remote changes with older local changes
+     * Conservative sync strategy:
+     *
+     * 1. Fetch (download only, no merge)
+     * 2. Check situation:
+     *    - Local has uncommitted changes?
+     *    - Remote has new commits?
+     * 3. Decision:
+     *    - Both have changes → Stop, return needsManualMerge (user must resolve)
+     *    - Only local changes → commit → push
+     *    - Only remote changes → pull
+     *    - Neither has changes → do nothing
+     *
+     * This prevents automatic merging that could overwrite remote data.
      */
     async function syncAll(
         vaultId: string,
@@ -711,19 +718,19 @@ Thumbs.db
             // Check if remote is empty (new repository)
             const remoteEmpty = await isRemoteEmpty(vaultId)
 
-            let pulledFiles = 0
-
-            // 1. First, check if we have local uncommitted changes
+            // 1. Check if we have local uncommitted changes
             const statusMatrix = await git.statusMatrix({
                 fs,
                 dir: '.',
                 filter: (f: string) => !f.startsWith('.git/'),
             })
-            const hasUncommittedChanges = statusMatrix.some(
+            const hasLocalChanges = statusMatrix.some(
                 ([, head, workdir, stage]) => head !== workdir || workdir !== stage
             )
 
-            // 2. Fetch from remote to see what's there (only if remote has content)
+            // 2. Fetch from remote to check for updates (only if remote has content)
+            let hasRemoteChanges = false
+
             if (!remoteEmpty && remote && creds?.token) {
                 let fetchUrl = remote.url
                 if (remote.url.startsWith('https://')) {
@@ -758,7 +765,7 @@ Thumbs.db
                     }
                 }
 
-                // 3. Check if we're behind remote
+                // 3. Check if remote has new commits (local is behind)
                 let localRef: string | null = null
                 let remoteRef: string | null = null
 
@@ -778,127 +785,119 @@ Thumbs.db
                     // Remote ref might not exist
                 }
 
-                // If both refs exist and they're different, we need to check relationship
+                // Determine if remote has changes we don't have
                 if (localRef && remoteRef && localRef !== remoteRef) {
-                    // Check if local contains all remote commits (is local ahead or diverged?)
-                    let localIsAheadOrEqual = false
+                    // Check if local is ahead of remote (remote is ancestor of local)
                     try {
-                        // If remote is ancestor of local, local is ahead (good)
-                        localIsAheadOrEqual = await git.isDescendent({
+                        const localIsAhead = await git.isDescendent({
                             fs,
                             dir: '.',
                             oid: localRef,
                             ancestor: remoteRef,
                         })
+                        // If local is NOT ahead, then remote has changes we need
+                        hasRemoteChanges = !localIsAhead
                     } catch {
-                        localIsAheadOrEqual = false
-                    }
-
-                    if (!localIsAheadOrEqual) {
-                        // Local is behind or diverged - we need to merge remote changes first
-                        console.log('[syncAll] Local is behind remote, need to merge remote changes first')
-
-                        // If we have uncommitted changes, we need to handle them carefully
-                        if (hasUncommittedChanges) {
-                            console.log('[syncAll] Has uncommitted changes - committing before merge')
-                            // First commit local changes
-                            await git.add({ fs, dir: '.', filepath: '.' })
-
-                            // Stage deleted files
-                            for (const [filepath, headStatus, workdirStatus] of statusMatrix) {
-                                if (headStatus === 1 && workdirStatus === 0) {
-                                    await git.remove({ fs, dir: '.', filepath })
-                                }
-                            }
-
-                            await git.commit({
-                                fs,
-                                dir: '.',
-                                message: commitMessage,
-                                author: getAuthor(),
-                            })
-                        }
-
-                        // Now merge remote changes
-                        currentOperation.value = 'Merging remote changes...'
-                        try {
-                            await git.merge({
-                                fs,
-                                dir: '.',
-                                theirs: `${remote.name}/${branch}`,
-                                author: getAuthor(),
-                            })
-                            pulledFiles = 1 // At least some files were updated
-                        } catch (mergeError) {
-                            const err = mergeError as Error
-                            if (err.message.includes('conflict')) {
-                                return {
-                                    success: false,
-                                    pulledFiles: 0,
-                                    pushedFiles: 0,
-                                    hasConflicts: true,
-                                    conflictFiles: [],
-                                    error: 'Merge conflicts detected. Please resolve manually.',
-                                }
-                            }
-                            throw mergeError
-                        }
-
-                        // Changes already committed above, skip to push
-                        const pushResult = await push(vaultId, handle)
-                        if (!pushResult.success) {
-                            return {
-                                success: false,
-                                pulledFiles,
-                                pushedFiles: 0,
-                                hasConflicts: false,
-                                conflictFiles: [],
-                                error: pushResult.error,
-                            }
-                        }
-
-                        const newStatus = await getStatus(vaultId, handle)
-                        gitStore.updateVaultStatus(vaultId, newStatus)
-
-                        return {
-                            success: true,
-                            pulledFiles,
-                            pushedFiles: pushResult.commitsPushed,
-                            hasConflicts: false,
-                            conflictFiles: [],
-                        }
+                        // If check fails, assume there might be remote changes
+                        hasRemoteChanges = true
                     }
                 } else if (remoteRef && !localRef) {
-                    // We don't have local branch but remote exists - need to checkout
-                    console.log('[syncAll] No local branch, checking out from remote')
-                    try {
-                        await git.checkout({
-                            fs,
-                            dir: '.',
-                            ref: branch,
-                        })
-                        pulledFiles = 1
-                    } catch (checkoutError) {
-                        console.warn('[syncAll] Checkout failed:', checkoutError)
+                    // Remote exists but no local branch - remote has content we need
+                    hasRemoteChanges = true
+                }
+            }
+
+            // 4. Decision based on situation
+            console.log(`[syncAll] Local changes: ${hasLocalChanges}, Remote changes: ${hasRemoteChanges}`)
+
+            // Case A: Both have changes → Stop, user must resolve manually
+            if (hasLocalChanges && hasRemoteChanges) {
+                console.log('[syncAll] Both local and remote have changes - manual merge required')
+                gitStore.setSyncStatus(vaultId, 'conflict')
+                return {
+                    success: false,
+                    pulledFiles: 0,
+                    pushedFiles: 0,
+                    hasConflicts: false,
+                    conflictFiles: [],
+                    needsManualMerge: true,
+                    error: '本地和遠端都有變更，請使用 Git 工具手動合併',
+                }
+            }
+
+            // Case B: Only remote has changes → Pull
+            if (!hasLocalChanges && hasRemoteChanges) {
+                console.log('[syncAll] Only remote has changes - pulling')
+                currentOperation.value = 'Pulling remote changes...'
+
+                const pullResult = await pull(vaultId, handle)
+                if (!pullResult.success) {
+                    return {
+                        success: false,
+                        pulledFiles: 0,
+                        pushedFiles: 0,
+                        hasConflicts: pullResult.hasConflicts,
+                        conflictFiles: pullResult.conflictFiles,
+                        error: pullResult.error,
+                    }
+                }
+
+                const newStatus = await getStatus(vaultId, handle)
+                gitStore.updateVaultStatus(vaultId, newStatus)
+
+                return {
+                    success: true,
+                    pulledFiles: pullResult.updatedFiles || 1,
+                    pushedFiles: 0,
+                    hasConflicts: false,
+                    conflictFiles: [],
+                }
+            }
+
+            // Case C: Only local has changes → Commit and Push
+            if (hasLocalChanges && !hasRemoteChanges) {
+                console.log('[syncAll] Only local has changes - committing and pushing')
+
+                const sha = await commit(vaultId, handle, commitMessage)
+
+                if (sha) {
+                    const pushResult = await push(vaultId, handle)
+                    if (!pushResult.success) {
+                        return {
+                            success: false,
+                            pulledFiles: 0,
+                            pushedFiles: 0,
+                            commitHash: sha,
+                            hasConflicts: false,
+                            conflictFiles: [],
+                            error: pushResult.error,
+                        }
+                    }
+
+                    const newStatus = await getStatus(vaultId, handle)
+                    gitStore.updateVaultStatus(vaultId, newStatus)
+
+                    return {
+                        success: true,
+                        pulledFiles: 0,
+                        pushedFiles: pushResult.commitsPushed,
+                        commitHash: sha,
+                        hasConflicts: false,
+                        conflictFiles: [],
                     }
                 }
             }
 
-            // 4. Commit local changes (if any)
-            const sha = await commit(vaultId, handle, commitMessage)
-
-            // 5. Check if we need to push
+            // Case D: Neither has changes → Check for unpushed commits
             const status = await getStatus(vaultId, handle)
-            const needsPush = sha || status.hasUnpushedCommits
-
-            if (needsPush) {
+            if (status.hasUnpushedCommits) {
+                console.log('[syncAll] Has unpushed commits - pushing')
                 const pushResult = await push(vaultId, handle)
                 if (!pushResult.success) {
                     return {
                         success: false,
-                        pulledFiles,
+                        pulledFiles: 0,
                         pushedFiles: 0,
-                        commitHash: sha || undefined,
                         hasConflicts: false,
                         conflictFiles: [],
                         error: pushResult.error,
@@ -910,18 +909,19 @@ Thumbs.db
 
                 return {
                     success: true,
-                    pulledFiles,
+                    pulledFiles: 0,
                     pushedFiles: pushResult.commitsPushed,
-                    commitHash: sha || undefined,
                     hasConflicts: false,
                     conflictFiles: [],
                 }
             }
 
-            // No changes to push
+            // Nothing to do
+            console.log('[syncAll] Nothing to sync')
+            gitStore.setSyncStatus(vaultId, 'idle')
             return {
                 success: true,
-                pulledFiles,
+                pulledFiles: 0,
                 pushedFiles: 0,
                 hasConflicts: false,
                 conflictFiles: [],

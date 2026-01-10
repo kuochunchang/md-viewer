@@ -165,6 +165,11 @@ export interface SyncResult {
     hasConflicts: boolean
     /** Conflict file paths */
     conflictFiles: string[]
+    /**
+     * Needs manual intervention - both local and remote have changes.
+     * User should use git client to resolve manually.
+     */
+    needsManualMerge?: boolean
 }
 
 /**

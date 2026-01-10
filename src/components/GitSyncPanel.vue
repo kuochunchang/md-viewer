@@ -229,7 +229,7 @@ function getStatusText(status: VaultGitStatus): string {
     case 'pushing': return 'Pushing...'
     case 'committing': return 'Committing...'
     case 'error': return status.errorMessage || 'Error'
-    case 'conflict': return 'Conflicts'
+    case 'conflict': return 'Manual merge needed'
     case 'idle':
       // Build status message
       const parts: string[] = []
@@ -261,6 +261,12 @@ async function handleSync(vaultId: string) {
   )
 
   const result = await gitSync.syncAll(vaultId, vault.handle, message)
+
+  // Handle needsManualMerge case specifically
+  if (result.needsManualMerge) {
+    gitStore.setError(vaultId, '本地和遠端都有變更，請使用 Git 工具手動合併後再同步')
+  }
+
   emit('sync-complete', vaultId, result.success)
 }
 
