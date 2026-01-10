@@ -218,7 +218,9 @@
             variant="outlined"
             density="compact"
             autofocus
-            @keydown.enter="confirmInput"
+            @keydown.enter="handleInputKeydown"
+            @compositionstart="isComposing = true"
+            @compositionend="isComposing = false"
           />
         </v-card-text>
         <v-card-actions>
@@ -279,6 +281,7 @@ const showInputDialog = ref(false)
 const inputDialogTitle = ref('')
 const inputDialogValue = ref('')
 const inputDialogCallback = ref<((value: string) => void) | null>(null)
+const isComposing = ref(false)  // Track IME composition state for CJK input
 
 // Watch for errors
 watch(error, (newError) => {
@@ -371,9 +374,15 @@ async function handleOpenFile(file: LocalFile, vaultId: string) {
   await openFile(file, vaultId)
 }
 
+// Generate default file name with random 4-digit number
+function generateDefaultFileName(): string {
+  const randomNum = Math.floor(1000 + Math.random() * 9000)  // 4-digit random number
+  return `Untitled-${randomNum}`
+}
+
 // File management handlers
 async function handleCreateFileInDir(vaultId: string, parentPath: string) {
-  showInputPrompt('New File', 'Untitled', async (name) => {
+  showInputPrompt('New File', generateDefaultFileName(), async (name) => {
     if (name) {
       await fileSystemStore.createFileInDirectory(vaultId, parentPath, name)
     }
@@ -441,6 +450,15 @@ function showInputPrompt(title: string, defaultValue: string, callback: (value: 
   inputDialogValue.value = defaultValue
   inputDialogCallback.value = callback
   showInputDialog.value = true
+}
+
+// Handle Enter key in input dialog - ignore during IME composition
+function handleInputKeydown() {
+  if (isComposing.value) {
+    // User is composing CJK characters, don't confirm yet
+    return
+  }
+  confirmInput()
 }
 
 function confirmInput() {

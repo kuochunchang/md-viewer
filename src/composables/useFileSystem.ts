@@ -220,7 +220,9 @@ export function useFileSystem(): UseFileSystemReturn {
 
     // Create a new file in a vault
     async function createNewFile(vaultId: string, name?: string): Promise<LocalFile | null> {
-        const fileName = name || `New Document ${Date.now()}`
+        // Generate a 4-digit random number for the default file name
+        const randomNum = Math.floor(1000 + Math.random() * 9000)
+        const fileName = name || `Untitled-${randomNum}`
         const file = await fileSystemStore.createFileInVault(vaultId, fileName, '')
 
         if (file) {
