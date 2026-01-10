@@ -8,10 +8,20 @@ import { GoogleGenAI } from '@google/genai'
 import { computed, ref } from 'vue'
 
 const STORAGE_KEY = 'md-viewer-gemini-api-key'
-const MODEL_NAME = 'gemini-3-flash-preview'
+const MODEL_STORAGE_KEY = 'md-viewer-gemini-model'
+const DEFAULT_MODEL = 'gemini-3-flash'
+
+// Available models (as of January 2026)
+export const GEMINI_MODELS = [
+    { value: 'gemini-3-flash', label: 'Gemini 3 Flash' },
+    { value: 'gemini-3-pro', label: 'Gemini 3 Pro' },
+] as const
+
+export type GeminiModelValue = typeof GEMINI_MODELS[number]['value']
 
 // Singleton state
 const apiKey = ref<string | null>(null)
+const selectedModel = ref<string>(DEFAULT_MODEL)
 const isProcessing = ref(false)
 const error = ref<string | null>(null)
 
@@ -27,6 +37,30 @@ function loadStoredApiKey(): string | null {
         console.error('Failed to load Gemini API key from localStorage:', e)
     }
     return null
+}
+
+// Initialize model from localStorage
+function loadStoredModel(): string {
+    try {
+        const stored = localStorage.getItem(MODEL_STORAGE_KEY)
+        if (stored && GEMINI_MODELS.some(m => m.value === stored)) {
+            selectedModel.value = stored
+            return stored
+        }
+    } catch (e) {
+        console.error('Failed to load Gemini model from localStorage:', e)
+    }
+    return DEFAULT_MODEL
+}
+
+// Save selected model to localStorage
+function saveModel(model: string): void {
+    try {
+        localStorage.setItem(MODEL_STORAGE_KEY, model)
+        selectedModel.value = model
+    } catch (e) {
+        console.error('Failed to save Gemini model:', e)
+    }
 }
 
 // Save API key to localStorage
@@ -69,11 +103,14 @@ export interface ChatMessage {
 export function useGeminiAI() {
     // Computed state
     const isApiKeySet = computed(() => !!apiKey.value)
+    const currentModel = computed(() => selectedModel.value)
 
     // Initialize on first use
     if (!apiKey.value) {
         loadStoredApiKey()
     }
+    // Initialize selected model
+    loadStoredModel()
 
     /**
      * Test if the API key is valid by making a simple request
@@ -87,7 +124,7 @@ export function useGeminiAI() {
             error.value = null
 
             const response = await client.models.generateContent({
-                model: MODEL_NAME,
+                model: selectedModel.value,
                 contents: 'Say "Hello" in one word.',
             })
 
@@ -136,7 +173,7 @@ ${text}
 Improved text:`
 
             const response = await client.models.generateContent({
-                model: MODEL_NAME,
+                model: selectedModel.value,
                 contents: prompt,
             })
 
@@ -201,7 +238,7 @@ ${originalText}
             fullPrompt += `User: ${userMessage}\n\nAssistant (remember: output only the final text, no options or preambles):`
 
             const response = await client.models.generateContent({
-                model: MODEL_NAME,
+                model: selectedModel.value,
                 contents: fullPrompt,
             })
 
@@ -240,11 +277,17 @@ ${originalText}
         isProcessing,
         error,
         apiKey: computed(() => apiKey.value),
+        currentModel,
+        availableModels: GEMINI_MODELS,
 
         // API key management
         setApiKey: saveApiKey,
         clearApiKey,
         getApiKey: () => apiKey.value,
+
+        // Model management
+        setModel: saveModel,
+        getModel: () => selectedModel.value,
 
         // AI functions
         testConnection,
@@ -271,7 +314,7 @@ Content:
 ${content.slice(0, 2000)}` // Limit content length to avoid token limits
 
                 const response = await client.models.generateContent({
-                    model: MODEL_NAME,
+                    model: selectedModel.value,
                     contents: prompt,
                 })
 

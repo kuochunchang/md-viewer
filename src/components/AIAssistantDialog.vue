@@ -12,9 +12,26 @@
           <v-icon color="primary">mdi-robot</v-icon>
           <span class="text-h6 font-weight-bold">AI Writing Assistant</span>
         </div>
-        <v-btn icon variant="text" size="small" @click="closeDialog">
-          <v-icon>mdi-close</v-icon>
-        </v-btn>
+        <div class="d-flex align-center gap-1">
+          <v-select
+            v-model="selectedModelValue"
+            :items="geminiAI.availableModels"
+            item-title="label"
+            item-value="value"
+            density="compact"
+            variant="outlined"
+            hide-details
+            class="model-select"
+            @update:model-value="onModelChange"
+          >
+            <template v-slot:prepend-inner>
+              <v-icon size="small" color="grey">mdi-brain</v-icon>
+            </template>
+          </v-select>
+          <v-btn icon variant="text" size="small" @click="closeDialog">
+            <v-icon>mdi-close</v-icon>
+          </v-btn>
+        </div>
       </v-card-title>
 
       <v-divider></v-divider>
@@ -168,6 +185,7 @@ const isOpen = ref(props.modelValue)
 const userInput = ref('')
 const chatHistory = ref<ChatMessage[]>([])
 const chatContainer = ref<HTMLElement | null>(null)
+const selectedModelValue = ref(geminiAI.getModel())
 
 // Sync dialog visibility
 watch(() => props.modelValue, (newVal) => {
@@ -195,6 +213,10 @@ watch(chatHistory, scrollToBottom, { deep: true })
 
 function closeDialog() {
   isOpen.value = false
+}
+
+function onModelChange(value: string) {
+  geminiAI.setModel(value)
 }
 
 async function handleQuickAction(action: { id: string; label: string; prompt: string }) {
@@ -346,5 +368,24 @@ function applyText(text: string) {
 .input-area {
   background-color: transparent;
   border-top: 1px solid rgba(var(--v-theme-on-surface), 0.08);
+}
+
+.model-select {
+  width: 200px;
+  font-size: 13px;
+  
+  :deep(.v-field__input) {
+    font-size: 13px;
+    padding-top: 4px;
+    padding-bottom: 4px;
+  }
+  
+  :deep(.v-field) {
+    padding-right: 8px;
+  }
+  
+  :deep(.v-field__prepend-inner) {
+    padding-right: 4px;
+  }
 }
 </style>
