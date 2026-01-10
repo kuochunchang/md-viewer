@@ -9,12 +9,14 @@ import { computed, ref } from 'vue'
 
 const STORAGE_KEY = 'md-viewer-gemini-api-key'
 const MODEL_STORAGE_KEY = 'md-viewer-gemini-model'
-const DEFAULT_MODEL = 'gemini-3-flash'
+const DEFAULT_MODEL = 'gemini-2.5-flash'
 
 // Available models (as of January 2026)
 export const GEMINI_MODELS = [
-    { value: 'gemini-3-flash', label: 'Gemini 3 Flash' },
-    { value: 'gemini-3-pro', label: 'Gemini 3 Pro' },
+    { value: 'gemini-3-flash-preview', label: 'Gemini 3 Flash' },
+    { value: 'gemini-3-pro-preview', label: 'Gemini 3 Pro' },
+    { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
+    { value: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro' },
 ] as const
 
 export type GeminiModelValue = typeof GEMINI_MODELS[number]['value']
