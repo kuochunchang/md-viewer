@@ -395,15 +395,15 @@
                   <div class="setting-label">
                     <span class="setting-name">Sync interval (minutes)</span>
                   </div>
-                  <v-slider
-                    v-model="localSyncSettings.autoSyncInterval"
+                  <v-text-field
+                    v-model.number="localSyncSettings.autoSyncInterval"
+                    type="number"
                     :min="1"
-                    :max="60"
-                    :step="1"
-                    thumb-label
                     density="compact"
+                    variant="outlined"
                     hide-details
                     class="mt-2"
+                    style="max-width: 120px"
                   />
                 </div>
               </div>

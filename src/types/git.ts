@@ -58,7 +58,7 @@ export interface GitSyncSettings {
  */
 export const DEFAULT_SYNC_SETTINGS: GitSyncSettings = {
     autoSyncEnabled: false,
-    autoSyncInterval: 5,
+    autoSyncInterval: 60,
     autoPullOnStartup: false,
     commitMessageStyle: 'smart',
     commitMessageTemplate: 'vault backup: {{date}}',
